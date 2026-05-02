@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  serverExternalPackages: ['kiteconnect'],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
@@ -8,7 +9,6 @@ const nextConfig = {
     ],
   },
   webpack: (config) => {
-    // kiteconnect's ws package has optional native deps we don't need
     config.resolve.fallback = {
       ...config.resolve.fallback,
       bufferutil: false,
