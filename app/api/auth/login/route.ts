@@ -4,10 +4,9 @@ import { SignJWT } from 'jose';
 import { createHash } from 'crypto';
 import { supabase } from '@/lib/supabase';
 
-const secret = new TextEncoder().encode(process.env.SESSION_SECRET!);
-
 export async function POST(req: NextRequest) {
   try {
+    const secret = new TextEncoder().encode(process.env.SESSION_SECRET!);
     const { email, password } = await req.json();
 
     if (!email || !password) {

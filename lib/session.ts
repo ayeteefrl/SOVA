@@ -1,8 +1,6 @@
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 
-const secret = new TextEncoder().encode(process.env.SESSION_SECRET!);
-
 export interface Session {
   userId: string;
   email: string;
@@ -15,6 +13,7 @@ export async function getSession(): Promise<Session | null> {
 
     if (!token) return null;
 
+    const secret = new TextEncoder().encode(process.env.SESSION_SECRET!);
     const verified = await jwtVerify(token, secret);
     return verified.payload as unknown as Session;
   } catch (err) {

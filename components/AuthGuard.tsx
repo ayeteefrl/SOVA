@@ -23,6 +23,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       .catch(() => router.replace('/login'));
   }, [pathname, router]);
 
-  if (!checked) return null;
+  if (!checked) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-surface">
+        <div className="w-8 h-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+      </div>
+    );
+  }
   return <>{children}</>;
 }

@@ -80,6 +80,7 @@ export function createKiteClient(): KiteInstance {
 
 // Fire-and-forget: triggers background session refresh without blocking the caller
 export function triggerSilentRefresh(): void {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
   fetch(`${baseUrl}/api/auth/kite/refresh`, { method: 'POST', credentials: 'include' }).catch(() => {});
 }
