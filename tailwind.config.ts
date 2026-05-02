@@ -1,0 +1,113 @@
+import type { Config } from 'tailwindcss';
+
+const config: Config = {
+  darkMode: 'class',
+  content: [
+    './app/**/*.{ts,tsx}',
+    './components/**/*.{ts,tsx}',
+  ],
+  theme: {
+    extend: {
+      colors: {
+        surface: 'var(--color-surface)',
+        'primary-fixed-dim': '#adc6ff',
+        'primary-fixed': '#d8e2ff',
+        'error-container': '#93000a',
+        'surface-container-highest': 'var(--color-surface-highest)',
+        'on-tertiary-fixed': '#40000d',
+        'on-surface-variant': '#c2c6d6',
+        'inverse-surface': '#dde2f8',
+        'primary-container': 'var(--color-primary-container)',
+        'surface-dim': '#0d1322',
+        'secondary-container': '#00a572',
+        'on-secondary-fixed-variant': '#005236',
+        'on-secondary-container': '#00311f',
+        secondary: 'var(--color-gain)',
+        'on-background': '#dde2f8',
+        'on-tertiary-fixed-variant': '#92002a',
+        'surface-variant': '#2f3445',
+        'on-secondary-fixed': '#002113',
+        outline: '#8c909f',
+        'secondary-fixed': '#6ffbbe',
+        'on-tertiary-container': '#5b0017',
+        'inverse-primary': '#005ac2',
+        'on-primary-fixed-variant': '#004395',
+        'on-secondary': '#003824',
+        'on-primary-container': '#00285d',
+        'on-primary': '#002e6a',
+        'surface-container-low': 'var(--color-surface-low)',
+        'surface-container-high': 'var(--color-surface-high)',
+        primary: 'var(--color-primary)',
+        'secondary-fixed-dim': 'var(--color-gain)',
+        tertiary: 'var(--color-loss)',
+        'tertiary-container': '#ff516a',
+        'surface-container-lowest': 'var(--color-surface-lowest)',
+        'outline-variant': '#424754',
+        'on-error-container': '#ffdad6',
+        'tertiary-fixed-dim': 'var(--color-loss)',
+        error: '#ffb4ab',
+        'surface-tint': '#adc6ff',
+        'on-error': '#690005',
+        'inverse-on-surface': '#2a3040',
+        'tertiary-fixed': '#ffdadb',
+        'on-surface': '#dde2f8',
+        'surface-container': 'var(--color-surface-mid)',
+        'surface-bright': '#33394a',
+        'on-tertiary': '#67001b',
+        'on-primary-fixed': '#001a42',
+        background: 'var(--color-surface)',
+        gold: '#D4AF37',
+      },
+      borderRadius: {
+        DEFAULT: '0.125rem',
+        lg: '0.25rem',
+        xl: '0.5rem',
+        full: '0.75rem',
+        pill: '9999px',
+      },
+      fontFamily: {
+        headline: ['Manrope', 'sans-serif'],
+        body: ['Manrope', 'sans-serif'],
+        label: ['Manrope', 'sans-serif'],
+        sans: ['Manrope', 'sans-serif'],
+      },
+      keyframes: {
+        ticker: {
+          '0%': { transform: 'translate3d(0, 0, 0)' },
+          '100%': { transform: 'translate3d(-50%, 0, 0)' },
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
+        'fade-up': {
+          '0%': { opacity: '0', transform: 'translateY(12px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        pulse_glow: {
+          '0%, 100%': { boxShadow: '0 0 0 0 rgba(173,198,255,0.3)' },
+          '50%': { boxShadow: '0 0 24px 4px rgba(173,198,255,0.25)' },
+        },
+      },
+      animation: {
+        ticker: 'ticker 60s linear infinite',
+        shimmer: 'shimmer 2.2s linear infinite',
+        'fade-up': 'fade-up 0.6s ease-out both',
+        pulse_glow: 'pulse_glow 2.6s ease-in-out infinite',
+      },
+      boxShadow: {
+        elevated: '0 24px 48px -18px rgba(8, 14, 29, 0.8), 0 2px 8px -2px rgba(8, 14, 29, 0.6)',
+        glow: '0 0 24px rgba(173, 198, 255, 0.25)',
+        'glow-gold': '0 0 32px rgba(212, 175, 55, 0.25)',
+        'inner-glint': 'inset 0 1px 0 0 rgba(66, 71, 84, 0.35)',
+      },
+      backgroundImage: {
+        'grid-pattern':
+          'linear-gradient(rgba(66,71,84,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(66,71,84,0.08) 1px, transparent 1px)',
+      },
+    },
+  },
+  plugins: [],
+};
+
+export default config;
