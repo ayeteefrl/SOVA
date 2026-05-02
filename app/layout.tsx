@@ -5,6 +5,7 @@ import { MarketTicker } from '@/components/MarketTicker';
 import { TopBar } from '@/components/TopBar';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { ClientLayout } from '@/components/ClientLayout';
+import { AuthGuard } from '@/components/AuthGuard';
 import { KiteAuthBanner } from '@/components/KiteAuthBanner';
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="bg-surface text-on-surface h-screen flex flex-col">
         <MarketTicker />
+        <AuthGuard>
         <ClientLayout>
           <Sidebar />
           <main className="flex-1 overflow-y-auto scrollbar-thin bg-surface relative min-h-0">
@@ -43,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <PageTransition>{children}</PageTransition>
           </main>
         </ClientLayout>
+        </AuthGuard>
       </body>
     </html>
   );
