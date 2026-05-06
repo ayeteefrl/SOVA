@@ -4,8 +4,7 @@ import { Card } from '@/components/ui/Card';
 import { AllocationDonut } from '@/components/charts/AllocationDonut';
 import { TopActivePositions } from '@/components/TopActivePositions';
 import { RiskTable } from '@/components/RiskTable';
-
-import { summary, allocation } from '@/lib/data';
+import { useHoldings } from '@/components/HoldingsContext';
 import { formatINR } from '@/lib/utils';
 import { motion } from 'framer-motion';
 
@@ -70,6 +69,19 @@ function MetricChip({
 
 // ─── page ─────────────────────────────────────────────────────────────────────
 export default function PortfolioPage() {
+  const { equityHoldings, mutualFundHoldings, etfHoldings } = useHoldings();
+
+  const allHoldings = [...equityHoldings, ...mutualFundHoldings, ...etfHoldings];
+  const netWorth = allHoldings.reduce((s, h) => s + h.value, 0);
+  const dayChange = allHoldings.reduce((s, h) => s + (h.value * h.daily) / 100, 0);
+  const dayChangePct = netWorth > 0 ? (dayChange / netWorth) * 100 : 0;
+
+  const allocation = [
+    { name: 'Equity', value: equityHoldings.reduce((s, h) => s + h.value, 0), color: '#adc6ff' },
+    { name: 'Mutual Funds', value: mutualFundHoldings.reduce((s, h) => s + h.value, 0), color: '#4edea3' },
+    { name: 'ETF', value: etfHoldings.reduce((s, h) => s + h.value, 0), color: '#8b9dff' },
+  ];
+
   return (
     <div className="flex-1 min-w-0 p-8 space-y-10 pb-16">
 
@@ -85,27 +97,31 @@ export default function PortfolioPage() {
               Total Portfolio Value
             </p>
             <h2 className="text-4xl font-black tracking-tighter text-on-surface mt-1">
-              {formatINR(summary.netWorth)}
+              {netWorth > 0 ? formatINR(netWorth) : <span className="text-outline">—</span>}
             </h2>
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-secondary-container/20 border border-secondary/15">
-            <span className="material-symbols-outlined text-secondary text-base">trending_up</span>
-            <span className="text-sm font-black text-secondary">
-              +{formatINR(summary.dayChange)} today
-            </span>
-            <span className="text-[10px] font-black text-secondary/70 ml-1">
-              ({summary.dayChangePct > 0 ? '+' : ''}{summary.dayChangePct}%)
-            </span>
-          </div>
+          {dayChange !== 0 && (
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border ${dayChange >= 0 ? 'bg-secondary-container/20 border-secondary/15' : 'bg-tertiary/10 border-tertiary/15'}`}>
+              <span className={`material-symbols-outlined text-base ${dayChange >= 0 ? 'text-secondary' : 'text-tertiary'}`}>
+                {dayChange >= 0 ? 'trending_up' : 'trending_down'}
+              </span>
+              <span className={`text-sm font-black ${dayChange >= 0 ? 'text-secondary' : 'text-tertiary'}`}>
+                {dayChange >= 0 ? '+' : ''}{formatINR(dayChange)} today
+              </span>
+              <span className={`text-[10px] font-black ml-1 ${dayChange >= 0 ? 'text-secondary/70' : 'text-tertiary/70'}`}>
+                ({dayChangePct >= 0 ? '+' : ''}{dayChangePct.toFixed(2)}%)
+              </span>
+            </div>
+          )}
         </motion.div>
 
         {/* ── 3 metric chips ── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <MetricChip
             label="Day's Gain / Loss"
-            value={`+${formatINR(summary.dayChange, { compact: true })}`}
-            sub={`${summary.dayChangePct}% vs yesterday`}
-            color="#4edea3"
+            value={`${dayChange >= 0 ? '+' : ''}${formatINR(Math.abs(dayChange), { compact: true })}`}
+            sub={`${dayChangePct >= 0 ? '+' : ''}${dayChangePct.toFixed(2)}% vs yesterday`}
+            color={dayChange >= 0 ? '#4edea3' : '#ffb2b7'}
             icon="show_chart"
             delay={0.05}
           />
@@ -142,7 +158,7 @@ export default function PortfolioPage() {
             <div className="space-y-4">
               {allocation.map((a, i) => {
                 const total = allocation.reduce((s, x) => s + x.value, 0);
-                const currentPct = (a.value / total) * 100;
+                const currentPct = total > 0 ? (a.value / total) * 100 : 0;
                 const target = targetAllocation[a.name] ?? 0;
                 const variance = currentPct - target;
                 const isOver = variance > 0;

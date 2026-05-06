@@ -317,12 +317,64 @@ export default function WatchlistPage() {
   const [view, setView] = useState<View>('GRID');
   const [showAddTicker, setShowAddTicker] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
+  const [pricesLoading, setPricesLoading] = useState(false);
 
   useEffect(() => {
     const loaded = loadLists();
     setLists(loaded);
     if (loaded.length > 0) setActiveId(loaded[0].id);
   }, []);
+
+  async function refreshPrices(targetId: string, allLists: WatchlistGroup[]) {
+    const list = allLists.find((l) => l.id === targetId);
+    if (!list || list.items.length === 0) return;
+    setPricesLoading(true);
+    try {
+      const updates = await Promise.allSettled(
+        list.items.map((item) =>
+          fetch(`/api/stock?symbol=${encodeURIComponent(item.ticker)}`)
+            .then((r) => r.ok ? r.json() : null)
+            .then((data) => data?.stock ?? null)
+        )
+      );
+      const updatedItems = list.items.map((item, i) => {
+        const res = updates[i];
+        if (res.status === 'fulfilled' && res.value) {
+          const s = res.value;
+          return {
+            ...item,
+            price: s.price ?? item.price,
+            change: s.changePercent ?? item.change,
+            sparkline: (s.sparkline?.length ?? 0) > 1 ? s.sparkline : item.sparkline,
+            marketCap: s.marketCap ? `₹${(s.marketCap / 1e7).toFixed(0)} Cr` : item.marketCap,
+            pe: s.trailingPE ?? item.pe,
+          };
+        }
+        return item;
+      });
+      const next = allLists.map((l) => l.id === targetId ? { ...l, items: updatedItems } : l);
+      setLists(next);
+      saveLists(next);
+    } finally {
+      setPricesLoading(false);
+    }
+  }
+
+  // Refresh prices on active list change
+  useEffect(() => {
+    refreshPrices(activeId, lists);
+  }, [activeId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for watchlist updates dispatched from SearchModal
+  useEffect(() => {
+    const handler = () => {
+      const loaded = loadLists();
+      setLists(loaded);
+      refreshPrices(activeId, loaded);
+    };
+    window.addEventListener('sova:watchlist-updated', handler);
+    return () => window.removeEventListener('sova:watchlist-updated', handler);
+  }, [activeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function persist(next: WatchlistGroup[]) {
     setLists(next);
@@ -348,7 +400,10 @@ export default function WatchlistPage() {
   }
 
   function addItem(listId: string, item: WatchlistItem) {
-    persist(lists.map((l) => l.id === listId ? { ...l, items: [...l.items, item] } : l));
+    const next = lists.map((l) => l.id === listId ? { ...l, items: [...l.items, item] } : l);
+    persist(next);
+    // Immediately fetch live price for the new item
+    refreshPrices(listId, next);
   }
 
   function removeItem(listId: string, itemId: string) {
@@ -401,6 +456,12 @@ export default function WatchlistPage() {
           subtitle={`${items.length} instrument${items.length !== 1 ? 's' : ''} under surveillance`}
           right={
             <div className="flex items-center gap-3">
+              {pricesLoading && (
+                <span className="text-[9px] font-black uppercase tracking-widest text-outline animate-pulse flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                  Updating prices…
+                </span>
+              )}
               <button
                 onClick={() => setShowAddTicker(true)}
                 className="px-4 h-10 rounded-lg text-[10px] font-black uppercase tracking-widest bg-surface-container-highest/50 text-on-surface hover:bg-surface-container-highest transition-colors flex items-center gap-2"

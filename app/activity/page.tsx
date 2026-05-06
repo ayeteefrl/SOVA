@@ -34,7 +34,7 @@ export default function ActivityPage() {
   const [cat, setCat] = useState<Category>('ALL');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<ActivityItem | null>(null);
   const [activityLog, setActivityLog] = useState<ActivityItem[]>([]);
   const [loadingActivity, setLoadingActivity] = useState(true);
 
@@ -87,29 +87,7 @@ export default function ActivityPage() {
     setExpandedId((prev) => (prev === id ? null : id));
   }
 
-  async function addActivity(newActivity: ActivityItem) {
-    // Save to Supabase
-    const body = {
-      asset_class: newActivity.tradeInstrumentType ?? 'Equity',
-      instrument_name: newActivity.tradeTicker ?? newActivity.title,
-      ticker: newActivity.tradeTicker,
-      action: newActivity.tradeAction ?? newActivity.category,
-      units: newActivity.tradeUnits,
-      price: newActivity.tradePrice,
-      amount: newActivity.amount,
-      rationale: newActivity.rationale,
-      notes: newActivity.detail,
-      trade_date: new Date().toISOString(),
-    };
-    const res = await fetch('/api/trades', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (res.ok) {
-      const saved = await res.json();
-      newActivity.id = saved.id;
-    }
+  function addActivity(newActivity: ActivityItem) {
     setActivityLog((prev) => [newActivity, ...prev]);
     updateHoldingsFromActivity(newActivity);
     setShowAddForm(false);
@@ -124,9 +102,12 @@ export default function ActivityPage() {
 
   function editActivity(id: string) {
     const item = activityLog.find((a) => a.id === id);
-    if (item) {
-      setEditingId(id);
-    }
+    if (item) setEditingItem(item);
+  }
+
+  async function saveEditedActivity(updated: ActivityItem) {
+    setActivityLog((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+    setEditingItem(null);
   }
 
   return (
@@ -359,11 +340,136 @@ export default function ActivityPage() {
           />
         )}
       </AnimatePresence>
+
+      {/* Edit Activity Modal */}
+      <AnimatePresence>
+        {editingItem && (
+          <EditActivityModal
+            item={editingItem}
+            onEdit={saveEditedActivity}
+            onClose={() => setEditingItem(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-// Activity Form Modal Component
+// ── Edit Activity Modal ────────────────────────────────────────────────────────
+function EditActivityModal({
+  item,
+  onEdit,
+  onClose,
+}: {
+  item: ActivityItem;
+  onEdit: (updated: ActivityItem) => void;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState(item.title);
+  const [detail, setDetail] = useState(item.detail);
+  const [amount, setAmount] = useState(String(item.amount));
+  const [rationale, setRationale] = useState(item.rationale ?? '');
+  const [tradeDate, setTradeDate] = useState(new Date().toISOString().split('T')[0]);
+  const [saving, setSaving] = useState(false);
+
+  const isValid = !!(title && amount);
+  const fieldStyle = { background: '#1a2035', border: '1px solid #2f3445' };
+  const labelCls = 'block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2';
+  const inputCls = 'w-full rounded-lg px-4 py-2.5 text-sm text-[#dde2f8] placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50';
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await fetch(`/api/trades/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instrument_name: title,
+          amount: parseFloat(amount) || 0,
+          rationale: rationale || undefined,
+          notes: detail,
+        }),
+      });
+    } catch { /* silent — still update local state */ }
+    setSaving(false);
+    onEdit({ ...item, title, detail, amount: parseFloat(amount) || 0, rationale: rationale || undefined });
+    onClose();
+  }
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-[#080e1d]/75 backdrop-blur-xl" />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 16 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-lg rounded-2xl overflow-hidden shadow-[0_32px_80px_-12px_rgba(0,0,0,0.8)]"
+        style={{ background: '#0f1526', border: '1px solid rgba(66,71,84,0.4)' }}
+      >
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#4d8eff30] to-transparent" />
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[#2f3445]/60">
+          <h2 className="text-base font-black tracking-tight text-[#dde2f8] flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#4d8eff]">edit</span>
+            Edit Activity
+          </h2>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#2f3445]/60 text-[#8c909f] hover:text-[#dde2f8] transition-colors">
+            <span className="material-symbols-outlined text-lg">close</span>
+          </button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className={labelCls}>Title</label>
+            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} style={fieldStyle} />
+          </div>
+          <div>
+            <label className={labelCls}>Detail / Notes</label>
+            <input type="text" value={detail} onChange={(e) => setDetail(e.target.value)} className={inputCls} style={fieldStyle} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Amount (₹)</label>
+              <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputCls} style={fieldStyle} />
+            </div>
+            <div>
+              <label className={labelCls}>Date</label>
+              <input type="date" value={tradeDate} onChange={(e) => setTradeDate(e.target.value)} className={`${inputCls} [color-scheme:dark]`} style={fieldStyle} />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Rationale</label>
+            <textarea value={rationale} onChange={(e) => setRationale(e.target.value)} rows={3} className={`${inputCls} resize-none`} style={fieldStyle} placeholder="Why was this transaction made?" />
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button onClick={onClose} className="flex-1 h-11 rounded-lg text-[10px] font-black uppercase tracking-widest text-[#8c909f] hover:text-[#dde2f8] transition-colors" style={{ background: '#1e2538', border: '1px solid #2f3445' }}>
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!isValid || saving}
+              className="flex-1 h-11 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-40 hover:scale-[1.01]"
+              style={{ background: isValid ? 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)' : '#424754', color: isValid ? '#001a42' : '#8c909f', boxShadow: isValid ? '0 0 24px rgba(173,198,255,0.2)' : 'none' }}
+            >
+              {saving
+                ? <><span className="material-symbols-outlined text-sm animate-spin">sync</span>Saving…</>
+                : <><span className="material-symbols-outlined text-sm">save</span>Save Changes</>
+              }
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// ── Add Activity Form Modal ────────────────────────────────────────────────────
 function ActivityFormModal({
   onAdd,
   onClose,
@@ -376,6 +482,7 @@ function ActivityFormModal({
   const [detail, setDetail] = useState('');
   const [amount, setAmount] = useState('');
   const [rationale, setRationale] = useState('');
+  const [tradeDate, setTradeDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Structured trade fields
   const [tradeAction, setTradeAction] = useState<'Buy' | 'Sell'>('Buy');
@@ -391,23 +498,23 @@ function ActivityFormModal({
     ? ((parseFloat(tradeUnits) || 0) * (parseFloat(tradePrice) || 0)).toFixed(0)
     : amount;
 
-  function handleSubmit() {
+  async function handleSubmit() {
+    let newActivity: ActivityItem;
+    let body: Record<string, unknown>;
+
     if (isTrade) {
       if (!tradeTicker || !tradeUnits || !tradePrice) return;
       const units = parseFloat(tradeUnits) || 0;
       const price = parseFloat(tradePrice) || 0;
       const totalAmount = units * price;
-      const autoTitle = `${tradeAction} ${tradeTicker.toUpperCase()}`;
-      const autoDetail = `${tradeAction} ${units} units @ ₹${price.toLocaleString('en-IN')} · ${tradeInstrumentType}`;
-
-      const newActivity: ActivityItem = {
+      newActivity = {
         id: `activity-${Date.now()}`,
-        title: autoTitle,
-        detail: autoDetail,
+        title: `${tradeAction} ${tradeTicker.toUpperCase()}`,
+        detail: `${tradeAction} ${units} units @ ₹${price.toLocaleString('en-IN')} · ${tradeInstrumentType}`,
         category: 'Trade',
         amount: totalAmount,
         positive: tradeAction === 'Sell',
-        timestamp: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
+        timestamp: new Date(tradeDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
         rationale: rationale || undefined,
         tradeAction,
         tradeTicker: tradeTicker.toUpperCase(),
@@ -415,21 +522,53 @@ function ActivityFormModal({
         tradePrice: price,
         tradeInstrumentType,
       };
-      onAdd(newActivity);
+      body = {
+        asset_class: tradeInstrumentType,
+        instrument_name: tradeTicker.toUpperCase(),
+        ticker: tradeTicker.toUpperCase(),
+        action: tradeAction,
+        units,
+        price,
+        amount: totalAmount,
+        rationale: rationale || undefined,
+        trade_date: new Date(tradeDate).toISOString(),
+      };
     } else {
       if (!title || !detail || !amount) return;
-      const newActivity: ActivityItem = {
+      newActivity = {
         id: `activity-${Date.now()}`,
         title,
         detail,
         category,
         amount: parseFloat(amount) || 0,
         positive: category === 'Deposit' || category === 'Dividend' || category === 'SIP',
-        timestamp: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
+        timestamp: new Date(tradeDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
         rationale: rationale || undefined,
       };
-      onAdd(newActivity);
+      body = {
+        asset_class: 'Equity',
+        instrument_name: title,
+        action: category,
+        amount: parseFloat(amount) || 0,
+        rationale: rationale || undefined,
+        notes: detail,
+        trade_date: new Date(tradeDate).toISOString(),
+      };
     }
+
+    try {
+      const res = await fetch('/api/trades', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        newActivity.id = saved.id;
+      }
+    } catch { /* silent — still update local state */ }
+
+    onAdd(newActivity);
   }
 
   const isValid = isTrade
@@ -596,6 +735,18 @@ function ActivityFormModal({
               </div>
             </>
           )}
+
+          {/* Date */}
+          <div>
+            <label className={labelCls}>Transaction Date</label>
+            <input
+              type="date"
+              value={tradeDate}
+              onChange={(e) => setTradeDate(e.target.value)}
+              className={`${inputCls} [color-scheme:dark]`}
+              style={fieldStyle}
+            />
+          </div>
 
           {/* Rationale */}
           <div>

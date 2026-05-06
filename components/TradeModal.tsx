@@ -32,12 +32,20 @@ const ORDER_TYPES_BY_ASSET: Record<string, string[]> = {
   Cash: ['Deposit', 'Withdrawal', 'Interest'],
 };
 
+export interface TradeInitValues {
+  ticker?: string;
+  name?: string;
+  action?: 'Buy' | 'Sell';
+  price?: number;
+}
+
 interface TradeModalProps {
   open: boolean;
   onClose: () => void;
+  initialValues?: TradeInitValues | null;
 }
 
-function ModalContent({ onClose }: { onClose: () => void }) {
+function ModalContent({ onClose, initialValues }: { onClose: () => void; initialValues?: TradeInitValues | null }) {
   const { collapsed } = useSidebar();
   const { updateHoldingsFromActivity } = useHoldings();
   const sidebarLeft = collapsed ? 0 : 256;
@@ -70,6 +78,19 @@ function ModalContent({ onClose }: { onClose: () => void }) {
   const totalValue = showQtyPrice && quantity && price
     ? Number(quantity) * Number(price)
     : Number(amount) || 0;
+
+  // Pre-fill from initialValues (e.g. triggered via sova:open-trade event from SearchModal)
+  useEffect(() => {
+    if (!initialValues) return;
+    if (initialValues.action) setOrderType(initialValues.action);
+    if (initialValues.name || initialValues.ticker) {
+      const display = initialValues.name || initialValues.ticker || '';
+      setSearchQuery(display);
+      setInstrument(display);
+    }
+    if (initialValues.ticker) setSelectedSymbol(initialValues.ticker);
+    if (initialValues.price) setPrice(String(initialValues.price));
+  }, [initialValues]);
 
   // Debounced instrument search
   const handleInstrumentInput = useCallback((value: string) => {
@@ -591,7 +612,7 @@ function ModalContent({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function TradeModal({ open, onClose }: TradeModalProps) {
+export function TradeModal({ open, onClose, initialValues }: TradeModalProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
@@ -600,7 +621,7 @@ export function TradeModal({ open, onClose }: TradeModalProps) {
 
   return createPortal(
     <AnimatePresence>
-      {open && <ModalContent onClose={onClose} />}
+      {open && <ModalContent onClose={onClose} initialValues={initialValues} />}
     </AnimatePresence>,
     document.body,
   );

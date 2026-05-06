@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { SearchModal } from '@/components/SearchModal';
-import { TradeModal } from '@/components/TradeModal';
+import { TradeModal, type TradeInitValues } from '@/components/TradeModal';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
 import { useSidebar } from '@/components/SidebarContext';
 import { useHoldings } from '@/components/HoldingsContext';
@@ -29,6 +29,7 @@ export function TopBar() {
   const meta = pageTitles[pathname] ?? { title: 'SOVA', subtitle: '' };
   const [searchOpen, setSearchOpen] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
+  const [tradeInitValues, setTradeInitValues] = useState<TradeInitValues | null>(null);
   const [notifOpen, setNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const { toggleMobile } = useSidebar();
@@ -52,6 +53,16 @@ export function TopBar() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<TradeInitValues>).detail;
+      setTradeInitValues(detail ?? null);
+      setTradeOpen(true);
+    };
+    window.addEventListener('sova:open-trade', handler);
+    return () => window.removeEventListener('sova:open-trade', handler);
   }, []);
 
   return (
@@ -152,7 +163,11 @@ export function TopBar() {
       </div>
 
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
-      <TradeModal open={tradeOpen} onClose={() => setTradeOpen(false)} />
+      <TradeModal
+        open={tradeOpen}
+        onClose={() => { setTradeOpen(false); setTradeInitValues(null); }}
+        initialValues={tradeInitValues}
+      />
       <NotificationsPanel open={notifOpen} onClose={() => setNotifOpen(false)} onUnreadChange={setUnreadCount} />
     </>
   );
