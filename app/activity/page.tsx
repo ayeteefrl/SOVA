@@ -192,7 +192,7 @@ export default function ActivityPage() {
           </div>
         ) : (
         <div className="relative">
-          <div className="absolute left-[22px] top-2 bottom-2 w-px bg-outline-variant/15" />
+          <div className="absolute left-[38px] top-2 bottom-2 w-px bg-outline-variant/15" />
           <div className="space-y-1">
             {filtered.map((a, i) => {
               const isExpanded = expandedId === a.id;

@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useSidebar } from './SidebarContext';
 import { useSettings } from './SettingsContext';
+import { useUser } from './UserContext';
 
 type NavItem = {
   label: string;
@@ -41,6 +42,7 @@ export function Sidebar() {
   const [portfolioOpen, setPortfolioOpen] = useState(portfolioActive);
   const { collapsed, mobileOpen, toggleCollapse, closeMobile } = useSidebar();
   const { avatarUrl } = useSettings();
+  const { displayName, initials } = useUser();
 
   return (
     <aside
@@ -235,7 +237,7 @@ export function Sidebar() {
               <span className="material-symbols-outlined text-sm">settings</span>
             </Link>
             <div className="w-10 h-10 mx-auto rounded-lg bg-gradient-to-br from-primary-container to-primary/40 flex items-center justify-center font-black text-on-primary-container text-sm shadow-glow overflow-hidden">
-              {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" /> : 'AT'}
+              {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" /> : initials}
             </div>
           </div>
         ) : (
@@ -256,11 +258,11 @@ export function Sidebar() {
             </Link>
             <div className="mt-3 pt-3 border-t border-outline-variant/10 flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-container to-primary/40 flex items-center justify-center font-black text-on-primary-container text-sm shadow-glow shrink-0 overflow-hidden">
-                {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" /> : 'AT'}
+                {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" /> : initials}
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] font-extrabold uppercase tracking-widest text-on-surface truncate">
-                  Advik Teotea
+                  {displayName}
                 </p>
                 <p className="text-[9px] text-outline uppercase tracking-wider">Premium Access</p>
               </div>

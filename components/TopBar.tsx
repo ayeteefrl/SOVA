@@ -26,10 +26,11 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
 
 export function TopBar() {
   const pathname = usePathname();
-  const meta = pageTitles[pathname] ?? { title: 'Sova', subtitle: '' };
+  const meta = pageTitles[pathname] ?? { title: 'SOVA', subtitle: '' };
   const [searchOpen, setSearchOpen] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const { toggleMobile } = useSidebar();
   const { refresh, isLoading } = useHoldings();
 
@@ -134,7 +135,9 @@ export function TopBar() {
             className="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-container-low text-outline hover:text-gold transition-colors relative"
           >
             <span className="material-symbols-outlined text-[20px]">notifications</span>
-            <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse" />
+            {unreadCount > 0 && (
+              <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse" />
+            )}
           </button>
 
           {/* New Trade */}
@@ -150,7 +153,7 @@ export function TopBar() {
 
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
       <TradeModal open={tradeOpen} onClose={() => setTradeOpen(false)} />
-      <NotificationsPanel open={notifOpen} onClose={() => setNotifOpen(false)} />
+      <NotificationsPanel open={notifOpen} onClose={() => setNotifOpen(false)} onUnreadChange={setUnreadCount} />
     </>
   );
 }

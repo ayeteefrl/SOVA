@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Chip } from '@/components/ui/Chip';
+import { useHoldings } from '@/components/HoldingsContext';
 import { newsFeed as mockNews } from '@/lib/data';
 import { cn } from '@/lib/utils';
 
@@ -19,15 +20,17 @@ type Article = {
   tickers: string[];
   time: string;
   url?: string;
+  publishedAt?: string;
 };
 
-/* ─── Portfolio tickers — shown in "My Portfolio" tab ─────────── */
-const PORTFOLIO_TICKERS = [
-  'RELIANCE', 'HDFCBANK', 'TCS', 'INFY', 'ICICIBANK', 'BAJFINANCE',
-  'ASIANPAINT', 'LT', 'NIFTY', 'BANKNIFTY', 'GOLDBEES', 'BBETF33',
+/* ─── Regional (India-focused) source names ─────────────────── */
+const INDIAN_SOURCES = [
+  'Economic Times', 'ET Markets', 'ET MF', 'Mint', 'Business Standard',
+  'Moneycontrol', 'NDTV Profit', 'LiveMint', 'The Hindu BusinessLine',
+  'CNBC TV18', 'Bloomberg Quint', 'Financial Express',
 ];
 
-/* ─── News source diversity list (for display) ────────────────── */
+/* ─── News source list (for footer disclosure) ──────────────── */
 const SOURCES = [
   'Economic Times', 'Mint', 'Business Standard', 'Moneycontrol',
   'Bloomberg Quint', 'Reuters', 'CNBC TV18', 'Financial Express',
@@ -38,7 +41,10 @@ const SOURCES = [
 const CATS = ['ALL', 'MARKETS', 'EQUITY', 'MACRO', 'GLOBAL', 'EARNINGS', 'POLICY', 'SECTOR'] as const;
 type Cat = (typeof CATS)[number];
 
-/* ─── Date tabs — today + last 6 days ────────────────────────── */
+/* ─── View tabs ──────────────────────────────────────────────── */
+type NewsView = 'global' | 'regional' | 'portfolio';
+
+/* ─── Date helpers ───────────────────────────────────────────── */
 function buildDateTabs() {
   const tabs = [];
   const today = new Date();
@@ -47,20 +53,28 @@ function buildDateTabs() {
     d.setDate(today.getDate() - i);
     tabs.push({
       label: i === 0 ? 'Today' : i === 1 ? 'Yesterday' : d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }),
-      date: d.toISOString().split('T')[0],
+      date: d.toISOString().split('T')[0], // YYYY-MM-DD
     });
   }
   return tabs;
 }
 
-/* ─── Sentiment chip ─────────────────────────────────────────── */
+function isSameDate(publishedAt: string | undefined, targetDate: string): boolean {
+  if (!publishedAt) return false;
+  try {
+    return new Date(publishedAt).toISOString().split('T')[0] === targetDate;
+  } catch {
+    return false;
+  }
+}
+
+/* ─── Sub-components ─────────────────────────────────────────── */
 function SentimentChip({ s }: { s: Article['sentiment'] }) {
   if (s === 'bullish') return <Chip variant="positive">Bullish</Chip>;
   if (s === 'bearish') return <Chip variant="negative">Bearish</Chip>;
   return <Chip variant="neutral">Neutral</Chip>;
 }
 
-/* ─── Skeleton ───────────────────────────────────────────────── */
 function SkeletonCard() {
   return (
     <div className="p-6 rounded-xl bg-surface-container-low border border-outline-variant/5 space-y-3 animate-pulse">
@@ -75,7 +89,6 @@ function SkeletonCard() {
   );
 }
 
-/* ─── Category icon ──────────────────────────────────────────── */
 function catIcon(cat: string) {
   const icons: Record<string, string> = {
     Policy: 'gavel', Earnings: 'assessment', Global: 'public',
@@ -84,20 +97,30 @@ function catIcon(cat: string) {
   return icons[cat] ?? 'article';
 }
 
-/* ─── News view tabs ─────────────────────────────────────────── */
-type NewsView = 'global' | 'portfolio';
-
 /* ─── Page ───────────────────────────────────────────────────── */
 export default function NewsPage() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
-  const [fetchedAt, setFetchedAt] = useState<string | null>(null);
-  const [cat, setCat] = useState<Cat>('ALL');
   const [usingLive, setUsingLive] = useState(false);
-  const [dateTab, setDateTab] = useState(0); // 0 = today
+  const [cat, setCat] = useState<Cat>('ALL');
+  const [dateTab, setDateTab] = useState(0);
+  const [customDate, setCustomDate] = useState('');
   const [newsView, setNewsView] = useState<NewsView>('global');
-  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
   const dateTabs = buildDateTabs();
+  const { equityHoldings } = useHoldings();
+
+  // Build dynamic portfolio tickers from real holdings
+  const portfolioTickers = useMemo(() => {
+    const tickers = equityHoldings
+      .map((h) => h.ticker?.toUpperCase())
+      .filter(Boolean) as string[];
+    // Fallback known names if no Zerodha holdings yet
+    return tickers.length > 0
+      ? tickers
+      : ['RELIANCE', 'HDFCBANK', 'TCS', 'INFY', 'ICICIBANK', 'BAJFINANCE'];
+  }, [equityHoldings]);
 
   const fetchNews = useCallback(async (cancelled = { value: false }) => {
     setLoading(true);
@@ -107,7 +130,6 @@ export default function NewsPage() {
       if (cancelled.value) return;
       if (data.articles?.length) {
         setArticles(data.articles);
-        setFetchedAt(data.fetchedAt);
         setUsingLive(true);
       } else throw new Error('empty');
     } catch {
@@ -116,58 +138,72 @@ export default function NewsPage() {
           id: n.id, headline: n.headline, source: n.source,
           category: n.category, summary: n.summary, sentiment: n.sentiment,
           tickers: n.tickers ?? [], time: n.time, url: undefined,
+          publishedAt: new Date().toISOString(), // mock = today
         }));
         setArticles(shaped);
         setUsingLive(false);
       }
     } finally {
-      if (!cancelled.value) {
-        setLoading(false);
-        setLastRefresh(new Date());
-      }
+      if (!cancelled.value) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     const cancelled = { value: false };
     fetchNews(cancelled);
-    // Auto-refresh every 5 minutes
     const interval = setInterval(() => fetchNews(cancelled), 5 * 60 * 1000);
     return () => { cancelled.value = true; clearInterval(interval); };
   }, [fetchNews]);
 
+  // Determine which date string we're filtering on
+  const activeDateStr = customDate || dateTabs[dateTab]?.date || dateTabs[0].date;
+
   const filtered = useMemo(() => {
     let result = articles;
 
-    // Portfolio filter: show only articles mentioning portfolio tickers
-    if (newsView === 'portfolio') {
+    // Date filter — today (dateTab === 0 and no custom date) shows all
+    if (dateTab > 0 || customDate) {
+      result = result.filter((a) => isSameDate(a.publishedAt, activeDateStr));
+    }
+
+    // View filter
+    if (newsView === 'regional') {
+      result = result.filter((a) => INDIAN_SOURCES.includes(a.source));
+    } else if (newsView === 'portfolio') {
       result = result.filter((a) =>
-        a.tickers.some((t) => PORTFOLIO_TICKERS.includes(t)) ||
-        PORTFOLIO_TICKERS.some((pt) => a.headline.includes(pt) || a.summary.includes(pt)),
+        a.tickers.some((t) => portfolioTickers.includes(t)) ||
+        portfolioTickers.some((pt) => a.headline.includes(pt) || a.summary.includes(pt)),
       );
     }
 
+    // Category filter
     if (cat !== 'ALL') {
       result = result.filter((a) => a.category.toUpperCase() === cat);
     }
 
     return result;
-  }, [articles, cat, newsView]);
+  }, [articles, cat, newsView, dateTab, customDate, activeDateStr, portfolioTickers]);
 
   const [featured, ...rest] = filtered;
+
+  function handleCustomDate(val: string) {
+    setCustomDate(val);
+    setDateTab(-1); // deselect standard tabs
+  }
 
   return (
     <div className="p-8 space-y-6 pb-16">
 
-      {/* ── Top control bar ── */}
-      <div className="pb-8 border-b border-outline-variant/10">
+      {/* ── Control bar ── */}
+      <div className="pb-8 border-b border-outline-variant/10 space-y-5">
 
-        {/* Row 1: News view toggle + refresh indicator */}
+        {/* Row 1: View tabs + refresh */}
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex gap-1 bg-surface-container-highest/30 p-1 rounded-xl shrink-0">
             {([
-              { id: 'global', label: 'Global Feed', icon: 'public' },
-              { id: 'portfolio', label: 'My Portfolio', icon: 'account_balance_wallet' },
+              { id: 'global',    label: 'Global Feed',  icon: 'public'                },
+              { id: 'regional',  label: 'Regional Feed', icon: 'flag'                  },
+              { id: 'portfolio', label: 'My Portfolio',  icon: 'account_balance_wallet' },
             ] as { id: NewsView; label: string; icon: string }[]).map((v) => (
               <button
                 key={v.id}
@@ -185,37 +221,29 @@ export default function NewsPage() {
             ))}
           </div>
 
-          {/* Auto-refresh indicator */}
           <div className="flex items-center gap-2 ml-auto">
             <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', usingLive ? 'bg-secondary animate-pulse' : 'bg-outline')} />
             <p className="text-[9px] font-bold uppercase tracking-widest text-outline whitespace-nowrap">
               {loading ? 'Fetching…' : usingLive ? 'Live · auto-refreshes every 5m' : 'Demo data'}
             </p>
             {!loading && (
-              <button
-                onClick={() => fetchNews()}
-                className="text-outline hover:text-primary-fixed-dim transition-colors ml-1 shrink-0"
-                title="Refresh now"
-              >
+              <button onClick={() => fetchNews()} className="text-outline hover:text-primary-fixed-dim transition-colors ml-1 shrink-0" title="Refresh">
                 <span className="material-symbols-outlined text-sm">refresh</span>
               </button>
             )}
           </div>
         </div>
 
-        {/* Divider */}
-        <div className="mt-5 mb-5 border-t border-outline-variant/10" />
-
-        {/* Row 2: Date tabs — scrollable strip */}
-        <div className="flex items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
+        {/* Row 2: Date tabs + calendar picker */}
+        <div className="flex items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' } as React.CSSProperties}>
           <span className="text-[9px] font-black uppercase tracking-widest text-outline shrink-0">Date:</span>
           {dateTabs.map((tab, i) => (
             <button
               key={tab.date}
-              onClick={() => setDateTab(i)}
+              onClick={() => { setDateTab(i); setCustomDate(''); }}
               className={cn(
                 'px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest whitespace-nowrap shrink-0 transition-all',
-                dateTab === i
+                dateTab === i && !customDate
                   ? 'bg-primary/15 text-primary-fixed-dim ring-1 ring-primary/30'
                   : 'bg-surface-container-highest/30 text-outline hover:text-on-surface',
               )}
@@ -223,10 +251,38 @@ export default function NewsPage() {
               {tab.label}
             </button>
           ))}
+
+          {/* Calendar picker */}
+          <div className="relative shrink-0 ml-1">
+            <button
+              onClick={() => dateInputRef.current?.showPicker?.()}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all',
+                customDate
+                  ? 'bg-gold/15 text-gold ring-1 ring-gold/30'
+                  : 'bg-surface-container-highest/30 text-outline hover:text-on-surface',
+              )}
+            >
+              <span className="material-symbols-outlined text-xs">calendar_month</span>
+              {customDate ? new Date(customDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Pick Date'}
+            </button>
+            <input
+              ref={dateInputRef}
+              type="date"
+              value={customDate}
+              max={dateTabs[0].date}
+              onChange={(e) => handleCustomDate(e.target.value)}
+              className="absolute inset-0 opacity-0 cursor-pointer w-full"
+              style={{ pointerEvents: 'none' }}
+            />
+          </div>
+          {customDate && (
+            <button onClick={() => { setCustomDate(''); setDateTab(0); }} className="text-[9px] font-black uppercase tracking-widest text-outline hover:text-tertiary transition-colors shrink-0">✕ Clear</button>
+          )}
         </div>
 
         {/* Row 3: Category filters */}
-        <div className="flex flex-wrap gap-2 mt-4">
+        <div className="flex flex-wrap gap-2">
           {CATS.map((c) => (
             <button
               key={c}
@@ -244,7 +300,7 @@ export default function NewsPage() {
         </div>
       </div>
 
-      {/* Portfolio news context banner */}
+      {/* Portfolio intelligence banner */}
       {newsView === 'portfolio' && !loading && (
         <motion.div
           initial={{ opacity: 0, y: -4 }}
@@ -255,13 +311,28 @@ export default function NewsPage() {
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-gold">Portfolio Intelligence</p>
             <p className="text-[10px] text-on-surface-variant mt-0.5">
-              Showing news relevant to your holdings — {PORTFOLIO_TICKERS.slice(0, 6).join(', ')} and more.
+              Filtering news for: {portfolioTickers.slice(0, 6).join(', ')}{portfolioTickers.length > 6 ? ' and more' : ''}.
             </p>
           </div>
         </motion.div>
       )}
 
-      {/* Loading */}
+      {/* Regional banner */}
+      {newsView === 'regional' && !loading && (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 rounded-xl bg-primary/8 ring-1 ring-primary/20 flex items-center gap-3"
+        >
+          <span className="material-symbols-outlined text-primary-fixed-dim text-base">flag</span>
+          <p className="text-[10px] text-on-surface-variant">
+            <span className="font-black text-primary-fixed-dim uppercase tracking-widest">Regional Feed</span>
+            {' '}— India-focused sources: ET, Mint, Business Standard, Moneycontrol, NDTV Profit.
+          </p>
+        </motion.div>
+      )}
+
+      {/* Loading skeletons */}
       {loading && (
         <div className="space-y-6">
           <div className="rounded-xl overflow-hidden border border-outline-variant/5 bg-surface-container-low p-10 animate-pulse">
@@ -276,22 +347,28 @@ export default function NewsPage() {
         </div>
       )}
 
-      {/* Empty */}
+      {/* Empty state */}
       {!loading && filtered.length === 0 && (
         <div className="py-24 text-center">
           <span className="material-symbols-outlined text-5xl text-outline/40">
             {newsView === 'portfolio' ? 'account_balance_wallet' : 'article'}
           </span>
           <p className="text-[11px] font-bold uppercase tracking-widest text-outline mt-4">
-            {newsView === 'portfolio'
-              ? 'No portfolio news for this filter'
-              : 'No articles in this category'}
+            {(dateTab > 0 || customDate)
+              ? `No articles found for ${customDate ? new Date(customDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long' }) : dateTabs[dateTab]?.label ?? 'this date'}`
+              : newsView === 'portfolio' ? 'No portfolio news for this filter' : 'No articles in this category'}
           </p>
-          {dateTab > 0 && (
-            <button onClick={() => setDateTab(0)} className="mt-3 text-[9px] font-black uppercase tracking-widest text-primary-fixed-dim hover:underline">
-              Back to Today
-            </button>
+          {(dateTab > 0 || customDate) && (
+            <p className="text-[10px] text-outline/70 mt-2 max-w-xs mx-auto">
+              RSS feeds only carry recent articles — past dates may have no coverage.
+            </p>
           )}
+          <button
+            onClick={() => { setDateTab(0); setCustomDate(''); setCat('ALL'); }}
+            className="mt-4 text-[9px] font-black uppercase tracking-widest text-primary-fixed-dim hover:underline"
+          >
+            Reset to Today
+          </button>
         </div>
       )}
 
@@ -299,7 +376,7 @@ export default function NewsPage() {
       <AnimatePresence mode="wait">
         {!loading && featured && (
           <motion.div
-            key={`${featured.id}-${dateTab}-${newsView}`}
+            key={`${featured.id}-${dateTab}-${newsView}-${customDate}`}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
@@ -316,6 +393,7 @@ export default function NewsPage() {
                       <SentimentChip s={featured.sentiment} />
                       {usingLive && <Chip variant="neutral">Live</Chip>}
                       {newsView === 'portfolio' && <Chip variant="gold">Portfolio</Chip>}
+                      {newsView === 'regional' && <Chip variant="primary">Regional</Chip>}
                     </div>
                     <h2 className="text-3xl font-black tracking-tight text-on-surface leading-[1.1]">
                       {featured.headline}
@@ -329,9 +407,7 @@ export default function NewsPage() {
                       </p>
                       {featured.tickers.length > 0 && (
                         <div className="flex gap-2">
-                          {featured.tickers.map((t) => (
-                            <Chip key={t} variant="neutral">{t}</Chip>
-                          ))}
+                          {featured.tickers.map((t) => <Chip key={t} variant="neutral">{t}</Chip>)}
                         </div>
                       )}
                       {featured.url && (
@@ -364,12 +440,16 @@ export default function NewsPage() {
       {!loading && rest.length > 0 && (
         <>
           <SectionHeader
-            overline={newsView === 'portfolio' ? 'Your Portfolio' : 'Feed'}
-            title={newsView === 'portfolio' ? 'Portfolio-Relevant Intelligence' : 'Latest Intelligence'}
+            overline={newsView === 'portfolio' ? 'Your Portfolio' : newsView === 'regional' ? 'India' : 'Feed'}
+            title={
+              newsView === 'portfolio' ? 'Portfolio-Relevant Intelligence'
+              : newsView === 'regional' ? 'Indian Market Intelligence'
+              : 'Latest Intelligence'
+            }
             subtitle={
               usingLive
-                ? `${rest.length} live articles · ${SOURCES.length}+ sources · auto-refreshes every 5m`
-                : `Demo articles · ${dateTabs[dateTab].label}`
+                ? `${rest.length} live articles · auto-refreshes every 5m`
+                : `Demo articles · ${customDate ? new Date(customDate + 'T00:00:00').toLocaleDateString('en-IN') : dateTabs[dateTab]?.label ?? ''}`
             }
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -396,9 +476,7 @@ export default function NewsPage() {
                         {n.source} · {n.time}
                       </p>
                       <div className="flex items-center gap-1.5">
-                        {n.tickers.slice(0, 2).map((t) => (
-                          <Chip key={t} variant="neutral">{t}</Chip>
-                        ))}
+                        {n.tickers.slice(0, 2).map((t) => <Chip key={t} variant="neutral">{t}</Chip>)}
                         {n.url && (
                           <span className="material-symbols-outlined text-outline group-hover:text-primary-fixed-dim transition-colors text-sm">
                             open_in_new

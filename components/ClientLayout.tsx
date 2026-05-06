@@ -3,6 +3,7 @@
 import { SidebarProvider, useSidebar } from './SidebarContext';
 import { SettingsProvider } from './SettingsContext';
 import { HoldingsProvider } from './HoldingsContext';
+import { UserProvider } from './UserContext';
 import { GlobalActivityPanel } from './GlobalActivityPanel';
 
 function LayoutInner({ children }: { children: React.ReactNode }) {
@@ -25,12 +26,14 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   return (
-    <HoldingsProvider>
-      <SettingsProvider>
-        <SidebarProvider>
-          <LayoutInner>{children}</LayoutInner>
-        </SidebarProvider>
-      </SettingsProvider>
-    </HoldingsProvider>
+    <UserProvider>
+      <HoldingsProvider>
+        <SettingsProvider>
+          <SidebarProvider>
+            <LayoutInner>{children}</LayoutInner>
+          </SidebarProvider>
+        </SettingsProvider>
+      </HoldingsProvider>
+    </UserProvider>
   );
 }
