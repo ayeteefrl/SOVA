@@ -274,11 +274,11 @@ export default function DashboardPage() {
         />
         <KPICard
           label="Day Change"
-          value={dayChangePct}
-          format="percent"
-          accent={dayChangePct >= 0 ? 'positive' : 'negative'}
+          value={dayChangeAbs}
+          format="inr"
+          accent={dayChangeAbs >= 0 ? 'positive' : 'negative'}
           icon="timeline"
-          sub={formatINR(dayChangeAbs, { compact: true })}
+          sub={`${dayChangePct >= 0 ? '+' : ''}${dayChangePct.toFixed(2)}%`}
         />
         <KPICard
           label="All‑Time Gain"

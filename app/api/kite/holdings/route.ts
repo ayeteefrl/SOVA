@@ -23,22 +23,49 @@ export async function GET(req: NextRequest) {
   try {
     const raw = await kc.getHoldings();
 
+    // Fetch live quotes for accurate intraday day-change data
+    // Zerodha holdings endpoint uses the purchase-to-current day_change_percentage which can differ
+    let quoteMap: Record<string, { change_percent: number; last_price: number }> = {};
+    try {
+      const symbols = raw
+        .slice(0, 50) // Kite quote API supports up to 500 but batching at 50 for safety
+        .map((h: any) => `NSE:${h.tradingsymbol}`);
+      if (symbols.length > 0) {
+        const quotes = await kc.getQuote(symbols);
+        for (const [key, q] of Object.entries(quotes as Record<string, any>)) {
+          const prevClose = q.ohlc?.close ?? 0;
+          const changePercent = prevClose > 0
+            ? ((q.last_price - prevClose) / prevClose) * 100
+            : 0;
+          quoteMap[key] = { change_percent: changePercent, last_price: q.last_price };
+        }
+      }
+    } catch {
+      // Quote fetch failed — fall back to holdings day_change_percentage
+    }
+
     const holdings: Holding[] = raw.map((h: any, i: number) => {
-      const value = h.last_price * h.quantity;
+      const quoteKey = `NSE:${h.tradingsymbol}`;
+      const quote = quoteMap[quoteKey];
+      // Prefer live quote ltp and accurate intraday change; fall back to holdings data
+      const ltp = quote?.last_price ?? h.last_price;
+      const value = ltp * h.quantity;
       const total = h.average_price > 0
-        ? ((h.last_price - h.average_price) / h.average_price) * 100
+        ? ((ltp - h.average_price) / h.average_price) * 100
         : 0;
-      // Zerodha provides sector in some API versions; fall back to a symbol-based lookup
+      const daily = quote !== undefined
+        ? quote.change_percent
+        : (h.day_change_percentage ?? 0);
       const sector = h.sector ?? sectorFromSymbol(h.tradingsymbol) ?? 'Other';
       return {
         id: `${h.tradingsymbol}-${i}`,
-        name: h.exchange_token ? `${h.tradingsymbol}` : h.tradingsymbol,
+        name: h.tradingsymbol,
         ticker: h.tradingsymbol,
         units: h.quantity,
         avgCost: h.average_price,
-        ltp: h.last_price,
+        ltp,
         value,
-        daily: h.day_change_percentage ?? 0,
+        daily,
         total,
         weight: 0,
         sector,

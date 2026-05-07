@@ -36,7 +36,9 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET — return last N snapshots for the performance chart
+// GET — return snapshots for the performance chart
+// ?daily=true  → one point per day (for 1M/3M/1Y/TTM chart)
+// ?months=N    → look back N months of data (default 24)
 export async function GET(req: NextRequest) {
   try {
     const session = await getSession();
@@ -45,7 +47,8 @@ export async function GET(req: NextRequest) {
     }
 
     const url = new URL(req.url);
-    const months = parseInt(url.searchParams.get('months') ?? '12');
+    const months = parseInt(url.searchParams.get('months') ?? '24');
+    const daily = url.searchParams.get('daily') === 'true';
 
     const since = new Date();
     since.setMonth(since.getMonth() - months);
@@ -61,10 +64,28 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ data: [] });
     }
 
-    // Group by month — take the last snapshot of each month
+    if (daily) {
+      // Return one data point per day
+      const data = rows.map((row) => {
+        const d = new Date(row.snapshot_date + 'T00:00:00');
+        const day = d.getDate();
+        const monthName = d.toLocaleString('en', { month: 'short' }).toUpperCase();
+        const yearSuffix = String(d.getFullYear()).slice(2);
+        return {
+          label: `${day} ${monthName} '${yearSuffix}`,
+          value: Number(row.net_worth),
+          benchmark: 0,
+          isFYEnd: d.getMonth() === 2,
+          date: row.snapshot_date,
+        };
+      });
+      return NextResponse.json({ data });
+    }
+
+    // Monthly grouping — take the last snapshot of each month
     const byMonth = new Map<string, { label: string; value: number; benchmark: number; isFYEnd: boolean }>();
     for (const row of rows) {
-      const d = new Date(row.snapshot_date);
+      const d = new Date(row.snapshot_date + 'T00:00:00');
       const monthName = d.toLocaleString('en', { month: 'short' }).toUpperCase();
       const yearSuffix = String(d.getFullYear()).slice(2);
       const key = `${monthName} '${yearSuffix}`;

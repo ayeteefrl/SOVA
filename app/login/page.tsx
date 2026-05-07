@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,6 +16,8 @@ export default function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const resendTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,6 +42,22 @@ export default function LoginPage() {
     }
   }
 
+  function startResendTimer() {
+    setResendCountdown(30);
+    if (resendTimerRef.current) clearInterval(resendTimerRef.current);
+    resendTimerRef.current = setInterval(() => {
+      setResendCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(resendTimerRef.current!);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+
+  useEffect(() => () => { if (resendTimerRef.current) clearInterval(resendTimerRef.current); }, []);
+
   async function handleForgotPassword(e: React.FormEvent) {
     e.preventDefault();
     setForgotLoading(true);
@@ -52,6 +70,21 @@ export default function LoginPage() {
     } catch { /* silent — always show success to prevent enumeration */ }
     setForgotSent(true);
     setForgotLoading(false);
+    startResendTimer();
+  }
+
+  async function handleResend() {
+    if (resendCountdown > 0) return;
+    setForgotLoading(true);
+    try {
+      await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+    } catch {}
+    setForgotLoading(false);
+    startResendTimer();
   }
 
   return (
@@ -253,6 +286,27 @@ export default function LoginPage() {
                     A password reset link has been sent to<br />
                     <span className="text-primary-fixed-dim">{forgotEmail}</span>
                   </p>
+                  <div className="mt-2 flex flex-col items-center gap-2">
+                    {resendCountdown > 0 ? (
+                      <p className="text-[10px] text-outline font-semibold">
+                        Resend available in{' '}
+                        <span className="text-primary-fixed-dim font-black tabular-nums">{resendCountdown}s</span>
+                      </p>
+                    ) : (
+                      <button
+                        onClick={handleResend}
+                        disabled={forgotLoading}
+                        className="text-[10px] font-black uppercase tracking-widest text-outline hover:text-primary-fixed-dim transition-colors disabled:opacity-40 flex items-center gap-1"
+                      >
+                        {forgotLoading ? (
+                          <span className="w-3 h-3 rounded-full border border-primary/30 border-t-primary animate-spin" />
+                        ) : (
+                          <span className="material-symbols-outlined text-xs">send</span>
+                        )}
+                        Haven&apos;t received email? Send again
+                      </button>
+                    )}
+                  </div>
                 </motion.div>
               ) : (
                 <form onSubmit={handleForgotPassword} className="space-y-4">

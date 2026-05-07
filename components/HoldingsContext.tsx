@@ -149,6 +149,23 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(id);
   }, []);
 
+  // Sync today's Zerodha trades once per day
+  useEffect(() => {
+    if (isLoading || needsKiteReconnect) return;
+    const lastSync = localStorage.getItem('sova-last-trade-sync');
+    const today = new Date().toISOString().slice(0, 10);
+    if (lastSync === today) return;
+
+    fetch('/api/kite/sync-trades', { method: 'POST' })
+      .then((r) => {
+        if (r.ok) {
+          localStorage.setItem('sova-last-trade-sync', today);
+          window.dispatchEvent(new Event('sova:refresh'));
+        }
+      })
+      .catch(() => {});
+  }, [isLoading, needsKiteReconnect]);
+
   // Save a daily portfolio snapshot once holdings have loaded
   useEffect(() => {
     if (isLoading) return;

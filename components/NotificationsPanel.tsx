@@ -92,7 +92,7 @@ export function NotificationsPanel({ open, onClose, onUnreadChange }: Notificati
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-            className="fixed top-[76px] right-[160px] z-[91] w-[380px] bg-surface-container-lowest rounded-2xl ghost-border shadow-elevated overflow-hidden"
+            className="fixed top-[84px] right-[44px] z-[91] w-[380px] bg-surface-container-lowest rounded-2xl ghost-border shadow-elevated overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/10">

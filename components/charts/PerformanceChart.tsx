@@ -15,7 +15,7 @@ import { Segmented } from '@/components/ui/Segmented';
 import { formatINR } from '@/lib/utils';
 import { useHoldings } from '@/components/HoldingsContext';
 
-type DataPoint = { label: string; value: number; benchmark: number; isFYEnd: boolean };
+type DataPoint = { label: string; value: number; benchmark: number; isFYEnd: boolean; date?: string };
 type ViewMode = '₹' | '%';
 
 const ranges = ['1M', '3M', '1Y', 'TTM', 'CUSTOM'] as const;
@@ -23,6 +23,7 @@ type Range = (typeof ranges)[number];
 
 export function PerformanceChart() {
   const [range, setRange] = useState<Range>('TTM');
+  const [prevRange, setPrevRange] = useState<Range>('TTM');
   const [viewMode, setViewMode] = useState<ViewMode>('₹');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -34,7 +35,7 @@ export function PerformanceChart() {
   function loadData() {
     setIsFetching(true);
     Promise.all([
-      fetch('/api/portfolio/snapshot?months=24', { signal: AbortSignal.timeout(8000) })
+      fetch('/api/portfolio/snapshot?months=24&daily=true', { signal: AbortSignal.timeout(8000) })
         .then((r) => r.ok ? r.json() : null)
         .catch(() => null),
       fetch('/api/portfolio/performance', { signal: AbortSignal.timeout(8000) })
@@ -75,10 +76,17 @@ export function PerformanceChart() {
 
   const slicedData = useMemo(() => {
     const all = resolvedSeries;
-    if (range === '1M') return all.slice(-2);
-    if (range === '3M') return all.slice(-3);
-    if (range === 'TTM') return all.slice(-12);
+    // For daily data use day-count slicing; fallback to index-based for monthly trade series
+    const isDaily = all.length > 0 && all[0].date !== undefined;
+    if (range === '1M') return isDaily ? all.slice(-30) : all.slice(-2);
+    if (range === '3M') return isDaily ? all.slice(-90) : all.slice(-3);
+    if (range === '1Y') return isDaily ? all.slice(-365) : all.slice(-12);
+    if (range === 'TTM') return isDaily ? all.slice(-365) : all.slice(-12);
     if (range === 'CUSTOM' && customStart && customEnd) {
+      // Filter by date string if available, otherwise fall back to label parsing
+      if (isDaily) {
+        return all.filter((d) => d.date && d.date >= customStart && d.date <= customEnd);
+      }
       const startMY = getInputMonthYear(customStart);
       const endMY = getInputMonthYear(customEnd);
       return all.filter((d) => {
@@ -99,10 +107,9 @@ export function PerformanceChart() {
   }, [slicedData, viewMode]);
 
   const xAxisConfig = useMemo(() => {
-    if (range === '1Y') return { ticks: data.filter((d) => d.isFYEnd).map((d) => d.label), interval: 0 as const, minTickGap: 0 };
-    if (range === '3M' || range === '1M') return { ticks: undefined, interval: 0 as const, minTickGap: 0 };
-    return { ticks: undefined, interval: Math.max(0, Math.floor(data.length / 6)) as any, minTickGap: 30 };
-  }, [range, data]);
+    const interval = Math.max(0, Math.floor(data.length / 6)) as any;
+    return { ticks: undefined, interval, minTickGap: 40 };
+  }, [data]);
 
   const first = slicedData[0]?.value ?? 0;
   const last  = slicedData[slicedData.length - 1]?.value ?? 0;
@@ -150,7 +157,18 @@ export function PerformanceChart() {
               </button>
             ))}
           </div>
-          <Segmented options={ranges} value={range} onChange={setRange} />
+          <Segmented
+            options={ranges}
+            value={range}
+            onChange={(newRange) => {
+              if (newRange === 'CUSTOM' && range === 'CUSTOM') {
+                setRange(prevRange);
+              } else {
+                if (range !== 'CUSTOM') setPrevRange(range);
+                setRange(newRange);
+              }
+            }}
+          />
           {range === 'CUSTOM' && (
             <div className="flex gap-2 items-center">
               <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
