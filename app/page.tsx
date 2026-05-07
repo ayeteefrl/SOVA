@@ -14,21 +14,10 @@ import { useHoldings } from '@/components/HoldingsContext';
 import { formatINR } from '@/lib/utils';
 import Link from 'next/link';
 
-const PORTFOLIO_CACHE_KEY = 'sova_portfolio_summary';
-
 const staggerVariants = {
   hidden: { opacity: 0 },
   visible: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
 };
-
-interface PortfolioSummary {
-  netWorth: number;
-  dayChange: number;
-  dayChangePct: number;
-  allTimeGain: number;
-  equityValue: number;
-  mfValue: number;
-}
 
 /* ─── Rebalance Modal ─────────────────────────────────────────── */
 function RebalanceModal({ onClose }: { onClose: () => void }) {
@@ -159,64 +148,76 @@ function RebalanceModal({ onClose }: { onClose: () => void }) {
 
 /* ─── Page ────────────────────────────────────────────────────── */
 export default function HomePage() {
-  const [portfolioSummary, setPortfolioSummary] = useState<PortfolioSummary | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [showRebalance, setShowRebalance] = useState(false);
   const { firstName } = useUser();
+  const { equityHoldings, mutualFundHoldings, etfHoldings, isLoading, needsKiteReconnect } = useHoldings();
 
-  function fetchPortfolio() {
-    setIsLoading(true);
-    fetch('/api/kite/portfolio')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data && !data.error) {
-          setPortfolioSummary(data);
-          // Cache last-known data
-          try { localStorage.setItem(PORTFOLIO_CACHE_KEY, JSON.stringify(data)); } catch {}
-        } else {
-          // Show last known data when Kite is disconnected
-          try {
-            const cached = localStorage.getItem(PORTFOLIO_CACHE_KEY);
-            if (cached) setPortfolioSummary({ ...JSON.parse(cached), _stale: true } as PortfolioSummary);
-          } catch {}
-        }
-      })
-      .catch(() => {
-        try {
-          const cached = localStorage.getItem(PORTFOLIO_CACHE_KEY);
-          if (cached) setPortfolioSummary({ ...JSON.parse(cached), _stale: true } as PortfolioSummary);
-        } catch {}
-      })
-      .finally(() => setIsLoading(false));
+  // All KPI values derived directly from holdings context.
+  // When Zerodha is connected, holdings are populated from Zerodha live data.
+  // When disconnected, holdings use cached/custom data. Either way, this is the single source of truth.
+  const equityValue    = equityHoldings.reduce((a, h) => a + h.value, 0);
+  const mfValue        = mutualFundHoldings.reduce((a, h) => a + h.value, 0);
+  const etfValue       = etfHoldings.reduce((a, h) => a + h.value, 0);
+  const netWorth       = equityValue + mfValue + etfValue;
+  const totalInvested  =
+    equityHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
+    mutualFundHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
+    etfHoldings.reduce((a, h) => a + h.units * h.avgCost, 0);
+  const dayChange      = equityHoldings.reduce((a, h) => a + (h.value * h.daily) / 100, 0);
+  const dayChangePct   = netWorth > 0 ? (dayChange / netWorth) * 100 : 0;
+  const allTimeGain    = netWorth - totalInvested;
+  const isPositiveDay  = dayChange >= 0;
+
+  // Sector breakdown for SectorBars
+  const sectorMap = new Map<string, number>();
+  for (const h of equityHoldings) {
+    const sector = h.sector ?? 'Other';
+    sectorMap.set(sector, (sectorMap.get(sector) ?? 0) + h.value);
   }
+  const sectorData = Array.from(sectorMap.entries())
+    .map(([sector, value]) => ({
+      sector,
+      weight: equityValue > 0 ? (value / equityValue) * 100 : 0,
+    }))
+    .sort((a, b) => b.weight - a.weight);
 
+  // Listen to global refresh events (e.g. after logging a trade)
   useEffect(() => {
-    fetchPortfolio();
-    window.addEventListener('sova:refresh', fetchPortfolio);
-    return () => window.removeEventListener('sova:refresh', fetchPortfolio);
+    const handler = () => {};
+    window.addEventListener('sova:refresh', handler);
+    return () => window.removeEventListener('sova:refresh', handler);
   }, []);
-
-  const s = portfolioSummary;
-  const isStale = (s as any)?._stale === true;
-  const isPositiveDay = (s?.dayChange ?? 0) >= 0;
 
   return (
     <div className="p-8 space-y-8 pb-16 relative">
 
-      {/* Stale data banner */}
+      {/* Disconnected banner */}
       <AnimatePresence>
-        {isStale && (
+        {needsKiteReconnect && (
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="flex items-center gap-3 px-5 py-3 rounded-xl bg-tertiary/10 ring-1 ring-tertiary/25"
+            className="flex items-center justify-between gap-3 px-5 py-3 rounded-xl bg-tertiary/10 ring-1 ring-tertiary/25"
           >
-            <span className="material-symbols-outlined text-tertiary text-base shrink-0">wifi_off</span>
-            <p className="text-[10px] font-bold text-on-surface-variant">
-              Zerodha is disconnected — showing last known portfolio data.{' '}
-              <Link href="/settings" className="text-primary-fixed-dim hover:underline">Reconnect →</Link>
-            </p>
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-tertiary text-base shrink-0">wifi_off</span>
+              <p className="text-[10px] font-bold text-on-surface-variant">
+                Zerodha is disconnected — showing holdings from cache. Live day P&L unavailable.
+              </p>
+            </div>
+            <a
+              href="/api/auth/kite/login"
+              className="shrink-0 flex items-center gap-1.5 px-4 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all hover:scale-[1.02]"
+              style={{
+                background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)',
+                color: '#001a42',
+                boxShadow: '0 0 16px rgba(173,198,255,0.2)',
+              }}
+            >
+              <span className="material-symbols-outlined text-sm">link</span>
+              Reconnect
+            </a>
           </motion.div>
         )}
       </AnimatePresence>
@@ -238,17 +239,20 @@ export default function HomePage() {
             <h1 className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.02] text-on-surface">
               Good morning, <span className="gradient-text-gold">{firstName}</span>.
             </h1>
-            {s ? (
+            {netWorth > 0 ? (
               <p className="text-sm text-on-surface-variant font-medium mt-3 max-w-lg">
                 Your book is{' '}
                 <span className={`font-bold ${isPositiveDay ? 'text-secondary' : 'text-tertiary'}`}>
-                  {isPositiveDay ? 'up' : 'down'} {Math.abs(s.dayChangePct).toFixed(2)}%
+                  {isPositiveDay ? 'up' : 'down'} {Math.abs(dayChangePct).toFixed(2)}%
                 </span>{' '}
-                on the day — {formatINR(Math.abs(s.dayChange), { compact: true })} net movement.
+                on the day — {formatINR(Math.abs(dayChange), { compact: true })} net movement.
+                {needsKiteReconnect && (
+                  <span className="text-outline"> (Cached data — reconnect Zerodha for live figures.)</span>
+                )}
               </p>
             ) : (
               <p className="text-sm text-on-surface-variant font-medium mt-3 max-w-lg">
-                {isLoading ? 'Loading your portfolio…' : 'Connect Zerodha to see live data.'}
+                {isLoading ? 'Loading your portfolio…' : 'Add holdings or connect Zerodha to get started.'}
               </p>
             )}
           </div>
@@ -278,17 +282,17 @@ export default function HomePage() {
         animate="visible"
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5"
       >
-        <KPICard label="Net Worth"     value={s?.netWorth ?? 0}    format="inr" icon="diamond" />
+        <KPICard label="Net Worth"     value={netWorth}    format="inr" icon="diamond" />
         <KPICard
           label="Day Change"
-          value={s?.dayChange ?? 0}
+          value={dayChange}
           format="inr"
           accent={isPositiveDay ? 'positive' : 'negative'}
-          delta={s?.dayChangePct}
+          delta={dayChangePct}
           icon="trending_up"
         />
-        <KPICard label="All-Time Gain" value={s?.allTimeGain ?? 0} format="inr" icon="insights" />
-        <KPICard label="Equity Value"  value={s?.equityValue ?? 0} format="inr" accent="gold" icon="savings" />
+        <KPICard label="All-Time Gain" value={allTimeGain} format="inr" icon="insights" accent={allTimeGain >= 0 ? 'positive' : 'negative'} />
+        <KPICard label="Equity Value"  value={equityValue} format="inr" accent="gold" icon="savings" />
       </motion.div>
 
       {/* Performance chart */}
@@ -302,8 +306,12 @@ export default function HomePage() {
           <AllocationDonut />
         </Card>
         <Card tier="low" className="p-8 lg:col-span-2">
-          <SectionHeader title="Sector Exposure" subtitle="% of equity sleeve" className="mb-6" />
-          <SectorBars />
+          <SectionHeader
+            title="Sector Exposure"
+            subtitle={sectorData.length > 0 ? '% of equity sleeve' : 'Add equity holdings to see sector data'}
+            className="mb-6"
+          />
+          <SectorBars data={sectorData} />
         </Card>
       </div>
 
@@ -346,7 +354,9 @@ export default function HomePage() {
       >
         <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-outline">
           ⟡ SOVA Terminal ·{' '}
-          {s ? `${formatINR(s.netWorth, { compact: true })} under management` : 'Connect Zerodha to load portfolio'}{' '}
+          {netWorth > 0
+            ? `${formatINR(netWorth, { compact: true })} under management`
+            : 'Add holdings to get started'}{' '}
           · Powered by Kite Connect
         </p>
       </motion.div>
@@ -361,29 +371,17 @@ export default function HomePage() {
 
 /* ─── Top Movers ──────────────────────────────────────────────── */
 function TopMovers() {
-  const [movers, setMovers] = useState<{ name: string; ticker: string; daily: number }[]>([]);
+  const { equityHoldings } = useHoldings();
 
-  function fetchMovers() {
-    fetch('/api/kite/holdings')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!data?.holdings) return;
-        const sorted = [...data.holdings].sort((a: any, b: any) => Math.abs(b.daily) - Math.abs(a.daily));
-        setMovers(sorted.slice(0, 5).map((h: any) => ({ name: h.name, ticker: h.ticker, daily: h.daily })));
-      })
-      .catch(() => {});
-  }
-
-  useEffect(() => {
-    fetchMovers();
-    window.addEventListener('sova:refresh', fetchMovers);
-    return () => window.removeEventListener('sova:refresh', fetchMovers);
-  }, []);
+  const movers = [...equityHoldings]
+    .filter((h) => h.daily !== 0)
+    .sort((a, b) => Math.abs(b.daily) - Math.abs(a.daily))
+    .slice(0, 5);
 
   if (!movers.length) {
     return (
       <p className="text-[11px] text-outline italic">
-        No holdings data — connect Zerodha to see movers.
+        No live holdings data — connect Zerodha or add holdings to see today's movers.
       </p>
     );
   }
@@ -392,11 +390,11 @@ function TopMovers() {
     <div className="space-y-3">
       {movers.map((m) => (
         <div
-          key={m.ticker}
+          key={m.ticker ?? m.name}
           className="flex items-center justify-between p-4 rounded-lg bg-surface-container-highest/20 hover:bg-surface-container-highest/40 transition-colors"
         >
           <div>
-            <p className="text-[11px] font-black uppercase tracking-widest text-on-surface">{m.ticker}</p>
+            <p className="text-[11px] font-black uppercase tracking-widest text-on-surface">{m.ticker ?? m.name}</p>
             <p className="text-[9px] text-outline font-bold uppercase tracking-widest mt-0.5">{m.name}</p>
           </div>
           <span className={`text-xs font-black ${m.daily >= 0 ? 'text-secondary' : 'text-tertiary'}`}>

@@ -6,7 +6,7 @@ import { Holding } from '@/lib/data';
 import { cn, formatINR } from '@/lib/utils';
 import { DeltaChip } from '@/components/ui/Chip';
 
-type SortKey = 'name' | 'value' | 'invested' | 'daily' | 'total' | 'weight';
+type SortKey = 'name' | 'value' | 'invested' | 'ltp' | 'daily' | 'total' | 'weight';
 type SortDir = 'asc' | 'desc';
 
 export function HoldingsTable({
@@ -29,6 +29,7 @@ export function HoldingsTable({
     );
     const getValue = (h: Holding, k: SortKey): number | string => {
       if (k === 'invested') return h.units * h.avgCost;
+      if (k === 'ltp') return h.ltp;
       return h[k] as number | string;
     };
     return [...filtered].sort((a, b) => {
@@ -85,12 +86,14 @@ export function HoldingsTable({
         </p>
       </div>
 
-      <div className="overflow-x-auto -mx-4 px-4">
-        <div className="min-w-[820px]">
-          <div className="grid grid-cols-[2fr_0.8fr_0.8fr_1fr_1fr_0.8fr_0.8fr_0.6fr_auto] gap-4 px-4 py-3 border-b border-outline-variant/10">
+      {/* ── Desktop Table (md+) ── */}
+      <div className="hidden md:block overflow-x-auto -mx-4 px-4">
+        <div className="min-w-[980px]">
+          <div className="grid grid-cols-[2fr_0.7fr_0.8fr_0.8fr_1fr_1fr_0.8fr_0.8fr_0.6fr_auto] gap-3 px-4 py-3 border-b border-outline-variant/10">
             <Header k="name" label="Instrument" />
             <div className="text-right"><Header k="value" label="Units" right /></div>
             <div className="text-right"><Header k="value" label="Avg Cost" right /></div>
+            <div className="text-right"><Header k="ltp" label="Curr. Price" right /></div>
             <div className="text-right"><Header k="invested" label="Invested" right /></div>
             <div className="text-right"><Header k="value" label="Value" right /></div>
             <div className="text-right"><Header k="daily" label="1D" right /></div>
@@ -105,7 +108,7 @@ export function HoldingsTable({
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: i * 0.03 }}
-                className="grid grid-cols-[2fr_0.8fr_0.8fr_1fr_1fr_0.8fr_0.8fr_0.6fr_auto] gap-4 px-4 py-4 items-center hover:bg-surface-container-highest/20 rounded-lg transition-colors group"
+                className="grid grid-cols-[2fr_0.7fr_0.8fr_0.8fr_1fr_1fr_0.8fr_0.8fr_0.6fr_auto] gap-3 px-4 py-4 items-center hover:bg-surface-container-highest/20 rounded-lg transition-colors group"
               >
                 <div>
                   <p className="text-xs font-bold text-on-surface">{h.name}</p>
@@ -116,6 +119,12 @@ export function HoldingsTable({
                 <p className="text-xs text-right font-semibold text-on-surface">{h.units.toLocaleString('en-IN')}</p>
                 <p className="text-xs text-right text-on-surface-variant">
                   {formatINR(h.avgCost, { decimals: 1 })}
+                </p>
+                <p className={cn(
+                  'text-xs text-right font-semibold',
+                  h.ltp > h.avgCost ? 'text-secondary' : h.ltp < h.avgCost ? 'text-tertiary' : 'text-on-surface-variant',
+                )}>
+                  {formatINR(h.ltp, { decimals: 1 })}
                 </p>
                 <p className="text-xs text-right text-on-surface-variant">
                   {formatINR(h.units * h.avgCost, { compact: true })}
@@ -145,6 +154,95 @@ export function HoldingsTable({
             ))}
           </div>
         </div>
+      </div>
+
+      {/* ── Mobile Cards (below md) ── */}
+      <div className="md:hidden space-y-3">
+        {sorted.map((h, i) => {
+          const invested = h.units * h.avgCost;
+          const gainValue = h.value - invested;
+          return (
+            <motion.div
+              key={h.id}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: i * 0.04 }}
+              className="rounded-xl p-4 space-y-3"
+              style={{ background: '#141c30', border: '1px solid rgba(66,71,84,0.3)' }}
+            >
+              {/* Top row: name + delete */}
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-black text-on-surface leading-tight">{h.name}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {h.ticker && (
+                      <span className="text-[9px] font-black uppercase tracking-widest text-outline">{h.ticker}</span>
+                    )}
+                    {showSector && h.sector && (
+                      <span className="text-[9px] font-bold text-outline/60">{h.sector}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <DeltaChip value={h.daily} />
+                  {onDelete && (
+                    <button
+                      onClick={() => onDelete(h.id)}
+                      className="w-7 h-7 flex items-center justify-center rounded-md text-outline hover:text-tertiary transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Price row */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-outline mb-0.5">Avg Cost</p>
+                  <p className="text-xs font-semibold text-on-surface-variant">{formatINR(h.avgCost, { decimals: 1 })}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-outline mb-0.5">LTP</p>
+                  <p className={cn(
+                    'text-xs font-black',
+                    h.ltp > h.avgCost ? 'text-secondary' : h.ltp < h.avgCost ? 'text-tertiary' : 'text-on-surface-variant',
+                  )}>
+                    {formatINR(h.ltp, { decimals: 1 })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-outline mb-0.5">Units</p>
+                  <p className="text-xs font-semibold text-on-surface">{h.units.toLocaleString('en-IN')}</p>
+                </div>
+              </div>
+
+              {/* Value row */}
+              <div className="flex items-center justify-between pt-2 border-t border-outline-variant/10">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-outline mb-0.5">Current Value</p>
+                  <p className="text-sm font-black text-on-surface">{formatINR(h.value, { compact: true })}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-outline mb-0.5">Gain / Loss</p>
+                  <div className="flex items-center justify-end gap-1.5">
+                    <p className={cn(
+                      'text-sm font-black',
+                      gainValue >= 0 ? 'text-secondary' : 'text-tertiary',
+                    )}>
+                      {gainValue >= 0 ? '+' : ''}{formatINR(gainValue, { compact: true })}
+                    </p>
+                    <DeltaChip value={h.total} />
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-outline mb-0.5">Weight</p>
+                  <p className="text-xs font-black text-primary-fixed-dim">{h.weight.toFixed(1)}%</p>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
     </div>
   );

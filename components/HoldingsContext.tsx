@@ -18,6 +18,20 @@ interface HoldingsContextType {
 
 const HoldingsContext = createContext<HoldingsContextType | undefined>(undefined);
 
+// Fetch live LTP for a custom holding using the stock API (tries NSE suffix)
+async function fetchLivePrice(ticker: string): Promise<{ ltp: number; daily: number } | null> {
+  const symbol = ticker.includes('.') ? ticker : `${ticker}.NS`;
+  try {
+    const res = await fetch(`/api/stock?symbol=${encodeURIComponent(symbol)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.stock?.price != null) {
+      return { ltp: data.stock.price, daily: data.stock.changePercent ?? 0 };
+    }
+  } catch {}
+  return null;
+}
+
 export function HoldingsProvider({ children }: { children: React.ReactNode }) {
   const [equityHoldings, setEquityHoldings] = useState<Holding[]>([]);
   const [mutualFundHoldings, setMutualFundHoldings] = useState<Holding[]>([]);
@@ -37,13 +51,14 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       if (equityRes.status === 401) {
         const data = await equityRes.json().catch(() => ({}));
         setNeedsKiteReconnect(data.error === 'reconnect_required');
-        // Even without Kite, load custom + cache
         let customHoldings: Holding[] = [];
         if (customRes.ok) {
           const cdata = await customRes.json();
           customHoldings = cdata.holdings ?? [];
         }
-        loadFromCache(customHoldings);
+        // Enrich custom holdings with live prices even when Zerodha is disconnected
+        const enriched = await enrichWithLivePrices(customHoldings);
+        loadFromCache(enriched);
         return;
       }
 
@@ -55,24 +70,28 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
         zerodhaEquity = data.holdings ?? [];
       }
 
-      // Merge custom holdings for tickers not already tracked by Zerodha
       let customHoldings: Holding[] = [];
       if (customRes.ok) {
         const cdata = await customRes.json();
         customHoldings = cdata.holdings ?? [];
       }
+
+      // Merge: custom holdings not already tracked by Zerodha
       const zerodhaTickerSet = new Set(zerodhaEquity.map((h) => normalizeTicker(h.ticker ?? '')));
       const extraCustom = customHoldings.filter(
         (h) => !zerodhaTickerSet.has(normalizeTicker(h.ticker ?? ''))
       );
-      const equity: Holding[] = [...zerodhaEquity, ...extraCustom];
+
+      // Fetch live prices for custom holdings (Zerodha already provides live LTP)
+      const enrichedCustom = await enrichWithLivePrices(extraCustom);
+
+      const equity: Holding[] = [...zerodhaEquity, ...enrichedCustom];
       setEquityHoldings(equity);
       try { localStorage.setItem('sova-equity-holdings', JSON.stringify(equity)); } catch {}
 
       if (mfRes.ok) {
         const data = await mfRes.json();
         const mf: Holding[] = data.holdings ?? [];
-        // Split ETFs (exchange-traded) from MFs (based on tradingsymbol suffix or instrument type)
         const etfs = mf.filter((h) => h.sector === 'ETF' || isEtfSymbol(h.ticker ?? ''));
         const funds = mf.filter((h) => h.sector !== 'ETF' && !isEtfSymbol(h.ticker ?? ''));
         setMutualFundHoldings(funds);
@@ -95,7 +114,6 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       const m = localStorage.getItem('sova-mf-holdings');
       const f = localStorage.getItem('sova-etf-holdings');
       const cached: Holding[] = e ? JSON.parse(e) : [];
-      // Merge custom holdings that aren't in cache
       const cachedTickerSet = new Set(cached.map((h) => normalizeTicker(h.ticker ?? '')));
       const extra = customHoldings.filter((h) => !cachedTickerSet.has(normalizeTicker(h.ticker ?? '')));
       setEquityHoldings([...cached, ...extra]);
@@ -157,9 +175,9 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
         return updated;
       } else if (isBuy && units > 0) {
         return [...holdings, {
-          id: `${ticker}-${Date.now()}`, name: ticker, ticker,
+          id: `${ticker}-${Date.now()}`, name: activity.instrumentName ?? ticker, ticker,
           units, avgCost: price, ltp: price, value: units * price,
-          daily: 0, total: 0, weight: 0, sector: 'Unknown',
+          daily: 0, total: 0, weight: 0, sector: activity.tradeSector ?? 'Other',
         }];
       }
       return holdings;
@@ -186,6 +204,26 @@ export function useHoldings() {
   const ctx = useContext(HoldingsContext);
   if (!ctx) throw new Error('useHoldings must be used within HoldingsProvider');
   return ctx;
+}
+
+// Enrich custom holdings with live LTP from Yahoo Finance
+async function enrichWithLivePrices(holdings: Holding[]): Promise<Holding[]> {
+  if (holdings.length === 0) return holdings;
+  const enriched = await Promise.allSettled(
+    holdings.map(async (h) => {
+      if (!h.ticker) return h;
+      const live = await fetchLivePrice(h.ticker);
+      if (!live) return h;
+      return {
+        ...h,
+        ltp: live.ltp,
+        value: h.units * live.ltp,
+        daily: live.daily,
+        total: h.avgCost > 0 ? ((live.ltp - h.avgCost) / h.avgCost) * 100 : 0,
+      };
+    })
+  );
+  return enriched.map((r, i) => (r.status === 'fulfilled' ? r.value : holdings[i]));
 }
 
 function isEtfSymbol(symbol: string): boolean {

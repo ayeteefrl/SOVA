@@ -48,8 +48,8 @@ export function MarketTicker() {
 
   useEffect(() => {
     fetchData();
-    // Refresh every 30 seconds — Yahoo Finance rate-limits faster polling
-    intervalRef.current = setInterval(fetchData, 30000);
+    // Refresh every 5 seconds for near-real-time prices
+    intervalRef.current = setInterval(fetchData, 5000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
 

@@ -22,6 +22,12 @@ const QUOTE_TYPE_COLOR: Record<string, string> = {
   INDEX: 'text-[#ffb2b7] bg-[#ffb2b7]/10',
 };
 
+const EQUITY_SECTORS = [
+  'IT / Technology', 'Banking / Finance', 'Oil & Gas', 'FMCG', 'Pharma / Healthcare',
+  'Auto', 'Infra / Construction', 'Metals / Mining', 'Consumer Durables', 'Telecom',
+  'Media / Entertainment', 'Real Estate', 'Energy / Power', 'Chemicals', 'Textiles', 'Other',
+];
+
 const ASSET_TYPES = ['Equity', 'Mutual Fund', 'ETF', 'PPF', 'Real Estate', 'Cash'] as const;
 const ORDER_TYPES_BY_ASSET: Record<string, string[]> = {
   Equity: ['Buy', 'Sell', 'Dividend'],
@@ -59,6 +65,7 @@ function ModalContent({ onClose, initialValues }: { onClose: () => void; initial
   const [broker, setBroker] = useState('Zerodha');
   const [rationale, setRationale] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [sector, setSector] = useState('Other');
 
   // Instrument autocomplete
   const [searchQuery, setSearchQuery] = useState('');
@@ -159,6 +166,7 @@ function ModalContent({ onClose, initialValues }: { onClose: () => void; initial
     setMarketPriceChange(null);
     setSearchResults([]);
     setShowDropdown(false);
+    setSector('Other');
   }
 
   async function handleSubmit() {
@@ -183,6 +191,7 @@ function ModalContent({ onClose, initialValues }: { onClose: () => void; initial
       trade_date: date ? new Date(date).toISOString() : new Date().toISOString(),
       rationale: rationale || undefined,
       notes: broker ? `via ${broker}` : undefined,
+      sector: ['Equity', 'ETF'].includes(assetType) ? sector : undefined,
     };
 
     try {
@@ -211,6 +220,7 @@ function ModalContent({ onClose, initialValues }: { onClose: () => void; initial
       tradeUnits: units || undefined,
       tradePrice: priceNum || undefined,
       tradeInstrumentType: assetClass === 'Equity' ? 'Equity' : assetClass === 'MF' ? 'MF' : assetClass === 'ETF' ? 'ETF' : 'Equity',
+      tradeSector: ['Equity', 'ETF'].includes(assetType) ? sector : undefined,
     };
     updateHoldingsFromActivity(activity);
     window.dispatchEvent(new Event('sova:refresh'));
@@ -423,6 +433,25 @@ function ModalContent({ onClose, initialValues }: { onClose: () => void; initial
                   )}
                 </AnimatePresence>
               </div>
+
+              {/* ── Sector (Equity / ETF only) ── */}
+              {['Equity', 'ETF'].includes(assetType) && (
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2">
+                    Sector
+                  </label>
+                  <select
+                    value={sector}
+                    onChange={(e) => setSector(e.target.value)}
+                    className="w-full rounded-lg px-4 py-3 text-sm text-[#dde2f8] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50 [color-scheme:dark]"
+                    style={{ background: '#1a2035', border: '1px solid #2f3445' }}
+                  >
+                    {EQUITY_SECTORS.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* ── Qty + Price (Equity / ETF) ── */}
               {showQtyPrice && (

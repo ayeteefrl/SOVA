@@ -74,6 +74,7 @@ export type ActivityItem = {
   tradeUnits?: number;
   tradePrice?: number;
   tradeInstrumentType?: 'Equity' | 'MF' | 'ETF';
+  tradeSector?: string;
 };
 
 export type NewsItem = {

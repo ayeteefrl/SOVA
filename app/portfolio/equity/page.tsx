@@ -320,6 +320,12 @@ function DonutCenterLabel({ pieData, activeIdx, total }: { pieData: { name: stri
   );
 }
 
+const EQUITY_SECTORS = [
+  'IT / Technology', 'Banking / Finance', 'Oil & Gas', 'FMCG', 'Pharma / Healthcare',
+  'Auto', 'Infra / Construction', 'Metals / Mining', 'Consumer Durables', 'Telecom',
+  'Media / Entertainment', 'Real Estate', 'Energy / Power', 'Chemicals', 'Textiles', 'Other',
+];
+
 // Add Equity Modal
 function AddEquityModal({
   onAdd,
@@ -332,13 +338,35 @@ function AddEquityModal({
   const [ticker, setTicker] = useState('');
   const [units, setUnits] = useState('');
   const [avgCost, setAvgCost] = useState('');
+  const [sector, setSector] = useState('Other');
+  const [livePrice, setLivePrice] = useState<number | null>(null);
+  const [livePriceLoading, setLivePriceLoading] = useState(false);
+  const [livePriceChange, setLivePriceChange] = useState<number | null>(null);
+
+  async function fetchLive(sym: string) {
+    if (!sym) return;
+    setLivePriceLoading(true);
+    setLivePrice(null);
+    try {
+      const symbol = sym.includes('.') ? sym : `${sym}.NS`;
+      const res = await fetch(`/api/stock?symbol=${encodeURIComponent(symbol)}`);
+      const data = await res.json();
+      if (data.stock?.price) {
+        setLivePrice(data.stock.price);
+        setLivePriceChange(data.stock.changePercent ?? null);
+      }
+    } catch {}
+    setLivePriceLoading(false);
+  }
 
   function handleSubmit() {
     if (!name || !ticker || !units || !avgCost) return;
 
     const unitsNum = parseFloat(units) || 0;
     const costNum = parseFloat(avgCost) || 0;
-    const value = unitsNum * costNum;
+    const ltpVal = livePrice ?? costNum;
+    const value = unitsNum * ltpVal;
+    const totalPct = costNum > 0 ? ((ltpVal - costNum) / costNum) * 100 : 0;
 
     const newHolding: Holding = {
       id: `${ticker.toUpperCase()}-${Date.now()}`,
@@ -346,12 +374,12 @@ function AddEquityModal({
       ticker: ticker.toUpperCase(),
       units: unitsNum,
       avgCost: costNum,
-      ltp: costNum,
+      ltp: ltpVal,
       value,
-      daily: 0,
-      total: 0,
+      daily: livePriceChange ?? 0,
+      total: totalPct,
       weight: 0,
-      sector: 'Other',
+      sector,
     };
 
     onAdd(newHolding);
@@ -384,7 +412,7 @@ function AddEquityModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           <div>
             <label className="block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2">
               Company Name
@@ -401,44 +429,97 @@ function AddEquityModal({
 
           <div>
             <label className="block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2">
-              Ticker Symbol
+              NSE Ticker Symbol
             </label>
-            <input
-              type="text"
-              value={ticker}
-              onChange={(e) => setTicker(e.target.value.toUpperCase())}
-              placeholder="e.g., RELIANCE"
-              className="w-full rounded-lg px-4 py-2.5 text-sm text-[#dde2f8] placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50"
-              style={{ background: '#1a2035', border: '1px solid #2f3445' }}
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={ticker}
+                onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                placeholder="e.g., RELIANCE"
+                className="flex-1 rounded-lg px-4 py-2.5 text-sm text-[#dde2f8] placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50"
+                style={{ background: '#1a2035', border: '1px solid #2f3445' }}
+              />
+              <button
+                type="button"
+                onClick={() => fetchLive(ticker)}
+                disabled={!ticker || livePriceLoading}
+                className="px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest disabled:opacity-40 transition-colors"
+                style={{ background: '#1e2538', border: '1px solid #2f3445', color: '#adc6ff' }}
+                title="Fetch live price from NSE"
+              >
+                {livePriceLoading
+                  ? <span className="material-symbols-outlined text-sm animate-spin" style={{ animationDuration: '0.8s' }}>progress_activity</span>
+                  : <span className="material-symbols-outlined text-sm">bolt</span>}
+              </button>
+            </div>
+            {livePrice != null && (
+              <p className="text-[10px] font-bold mt-1.5 flex items-center gap-1.5">
+                <span className="text-[#8c909f]">Live LTP:</span>
+                <span className="text-[#adc6ff] font-black">₹{livePrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                {livePriceChange != null && (
+                  <span className={livePriceChange >= 0 ? 'text-[#4edea3]' : 'text-[#ffb2b7]'}>
+                    ({livePriceChange >= 0 ? '+' : ''}{livePriceChange.toFixed(2)}%)
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2">
+                Units
+              </label>
+              <input
+                type="number"
+                value={units}
+                onChange={(e) => setUnits(e.target.value)}
+                placeholder="0"
+                className="w-full rounded-lg px-4 py-2.5 text-sm text-[#dde2f8] placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50"
+                style={{ background: '#1a2035', border: '1px solid #2f3445' }}
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-[#8c909f]">
+                  Avg Cost (₹)
+                </label>
+                {livePrice != null && (
+                  <button
+                    type="button"
+                    onClick={() => setAvgCost(String(livePrice))}
+                    className="text-[9px] font-black text-[#4d8eff] hover:text-[#adc6ff] transition-colors"
+                  >
+                    Use live ↑
+                  </button>
+                )}
+              </div>
+              <input
+                type="number"
+                value={avgCost}
+                onChange={(e) => setAvgCost(e.target.value)}
+                placeholder="0"
+                className="w-full rounded-lg px-4 py-2.5 text-sm text-[#dde2f8] placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50"
+                style={{ background: '#1a2035', border: '1px solid #2f3445' }}
+              />
+            </div>
           </div>
 
           <div>
             <label className="block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2">
-              Units
+              Sector
             </label>
-            <input
-              type="number"
-              value={units}
-              onChange={(e) => setUnits(e.target.value)}
-              placeholder="0"
-              className="w-full rounded-lg px-4 py-2.5 text-sm text-[#dde2f8] placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50"
+            <select
+              value={sector}
+              onChange={(e) => setSector(e.target.value)}
+              className="w-full rounded-lg px-4 py-2.5 text-sm text-[#dde2f8] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50 [color-scheme:dark]"
               style={{ background: '#1a2035', border: '1px solid #2f3445' }}
-            />
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2">
-              Average Cost per Unit (₹)
-            </label>
-            <input
-              type="number"
-              value={avgCost}
-              onChange={(e) => setAvgCost(e.target.value)}
-              placeholder="0"
-              className="w-full rounded-lg px-4 py-2.5 text-sm text-[#dde2f8] placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50"
-              style={{ background: '#1a2035', border: '1px solid #2f3445' }}
-            />
+            >
+              {EQUITY_SECTORS.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
           </div>
 
           <div className="flex gap-3 pt-2">
