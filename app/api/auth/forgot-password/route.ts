@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { createHash, randomBytes } from 'crypto';
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const transporter = nodemailer.createTransport({
+  host: 'smtpout.secureserver.net',
+  port: 465,
+  secure: true,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,10 +42,9 @@ export async function POST(req: NextRequest) {
 
       const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
 
-      // Send reset email via Resend (if configured)
-      if (resend) {
-        await resend.emails.send({
-          from: process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev',
+      if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+        await transporter.sendMail({
+          from: `"SOVA" <${process.env.EMAIL_USER}>`,
           to: email,
           subject: 'Reset Your SOVA Password',
           html: `
