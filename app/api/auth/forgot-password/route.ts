@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
       // Send reset email via Resend (if configured)
       if (resend) {
         await resend.emails.send({
-          from: 'noreply@sova.finance',
+          from: process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev',
           to: email,
           subject: 'Reset Your SOVA Password',
           html: `
