@@ -16,9 +16,10 @@ type Props = {
   sub?: string;
   accent?: 'neutral' | 'positive' | 'negative' | 'gold' | 'primary';
   icon?: string;
+  loading?: boolean;
 };
 
-export function KPICard({ label, value, format = 'inr', delta, sub, accent = 'neutral', icon }: Props) {
+export function KPICard({ label, value, format = 'inr', delta, sub, accent = 'neutral', icon, loading }: Props) {
   const fmt = useFmt();
   const [editMode, setEditMode] = useState(false);
   const [localValue, setLocalValue] = useState(value);
@@ -87,7 +88,12 @@ export function KPICard({ label, value, format = 'inr', delta, sub, accent = 'ne
           )}
         </div>
       </div>
-      {editMode ? (
+      {loading ? (
+        <div className="space-y-2 mt-1">
+          <div className="h-8 w-32 rounded-lg bg-surface-container-highest/30 animate-pulse" />
+          <div className="h-3 w-20 rounded bg-surface-container-highest/20 animate-pulse" />
+        </div>
+      ) : editMode ? (
         <div className="flex items-center gap-2 mt-1">
           <input
             type="number"
@@ -107,12 +113,14 @@ export function KPICard({ label, value, format = 'inr', delta, sub, accent = 'ne
           <AnimatedNumber value={localValue} format={formatter} />
         </h3>
       )}
-      <div className="mt-1 flex items-center gap-2 relative">
-        {delta !== undefined && <DeltaChip value={delta} />}
-        {sub && (
-          <p className="text-[10px] font-bold text-outline uppercase tracking-widest">{sub}</p>
-        )}
-      </div>
+      {!loading && (
+        <div className="mt-1 flex items-center gap-2 relative">
+          {delta !== undefined && <DeltaChip value={delta} />}
+          {sub && (
+            <p className="text-[10px] font-bold text-outline uppercase tracking-widest">{sub}</p>
+          )}
+        </div>
+      )}
     </Card>
   );
 }

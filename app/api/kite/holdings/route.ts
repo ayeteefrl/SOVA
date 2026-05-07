@@ -27,9 +27,7 @@ export async function GET(req: NextRequest) {
     // Zerodha holdings endpoint uses the purchase-to-current day_change_percentage which can differ
     let quoteMap: Record<string, { change_percent: number; last_price: number }> = {};
     try {
-      const symbols = raw
-        .slice(0, 50) // Kite quote API supports up to 500 but batching at 50 for safety
-        .map((h: any) => `NSE:${h.tradingsymbol}`);
+      const symbols = raw.map((h: any) => `NSE:${h.tradingsymbol}`);
       if (symbols.length > 0) {
         const quotes = await kc.getQuote(symbols);
         for (const [key, q] of Object.entries(quotes as Record<string, any>)) {

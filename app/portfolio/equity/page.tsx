@@ -35,7 +35,7 @@ const activeShape = (props: any) => {
 };
 
 export default function EquityPage() {
-  const { equityHoldings, addHolding, removeHolding, updateHolding } = useHoldings();
+  const { equityHoldings, addHolding, removeHolding, updateHolding, isLoading } = useHoldings();
 
   const [chartType, setChartType] = useState<ChartType>('pie');
   const [activeIdx, setActiveIdx] = useState<number | undefined>(0);
@@ -68,9 +68,11 @@ export default function EquityPage() {
             value={totalInvested}
             format="inr"
             icon="savings"
+            loading={isLoading}
             sub={`${equityHoldings.length} positions`}
           />
           <KPICard label="Current Value" value={total} format="inr" icon="trending_up"
+            loading={isLoading}
             sub={totalInvested > 0 ? `${((total / totalInvested - 1) * 100).toFixed(1)}% return` : undefined}
           />
           <KPICard
@@ -80,6 +82,7 @@ export default function EquityPage() {
             accent={dayChange >= 0 ? 'positive' : 'negative'}
             delta={dayPct}
             icon="analytics"
+            loading={isLoading}
           />
           <KPICard
             label="Unrealised Gain"
@@ -88,6 +91,7 @@ export default function EquityPage() {
             accent={totalGain >= 0 ? 'positive' : 'negative'}
             sub="Book to market"
             icon="paid"
+            loading={isLoading}
           />
         </div>
 

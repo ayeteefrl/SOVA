@@ -262,6 +262,7 @@ export default function DashboardPage() {
           format="inr"
           accent="primary"
           icon="insights"
+          loading={holdingsLoading}
           sub={`Eq ${formatINR(equityValue, { compact: true })} · MF ${formatINR(mfValue, { compact: true })} · ETF ${formatINR(etfValue, { compact: true })}`}
         />
         <KPICard
@@ -270,6 +271,7 @@ export default function DashboardPage() {
           format="percent"
           accent={totalReturnPct >= 0 ? 'positive' : 'negative'}
           icon="show_chart"
+          loading={holdingsLoading}
           sub={holdingsLoading ? 'Loading…' : equityHoldings.length === 0 ? 'No Kite data' : `on ${formatINR(totalInvested, { compact: true })} invested`}
         />
         <KPICard
@@ -278,6 +280,7 @@ export default function DashboardPage() {
           format="inr"
           accent={dayChangeAbs >= 0 ? 'positive' : 'negative'}
           icon="timeline"
+          loading={holdingsLoading}
           sub={`${dayChangePct >= 0 ? '+' : ''}${dayChangePct.toFixed(2)}%`}
         />
         <KPICard
@@ -286,6 +289,7 @@ export default function DashboardPage() {
           format="inr"
           accent={totalReturn >= 0 ? 'positive' : 'negative'}
           icon="flag"
+          loading={holdingsLoading}
           sub={`${equityHoldings.length + mutualFundHoldings.length + etfHoldings.length} positions`}
         />
       </div>

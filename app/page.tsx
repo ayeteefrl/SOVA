@@ -282,7 +282,7 @@ export default function HomePage() {
         animate="visible"
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5"
       >
-        <KPICard label="Net Worth"     value={netWorth}    format="inr" icon="diamond" />
+        <KPICard label="Net Worth"     value={netWorth}    format="inr" icon="diamond" loading={isLoading} />
         <KPICard
           label="Day Change"
           value={dayChange}
@@ -290,9 +290,10 @@ export default function HomePage() {
           accent={isPositiveDay ? 'positive' : 'negative'}
           delta={dayChangePct}
           icon="trending_up"
+          loading={isLoading}
         />
-        <KPICard label="All-Time Gain" value={allTimeGain} format="inr" icon="insights" accent={allTimeGain >= 0 ? 'positive' : 'negative'} />
-        <KPICard label="Equity Value"  value={equityValue} format="inr" accent="gold" icon="savings" />
+        <KPICard label="All-Time Gain" value={allTimeGain} format="inr" icon="insights" accent={allTimeGain >= 0 ? 'positive' : 'negative'} loading={isLoading} />
+        <KPICard label="Equity Value"  value={equityValue} format="inr" accent="gold" icon="savings" loading={isLoading} />
       </motion.div>
 
       {/* Performance chart */}
