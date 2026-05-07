@@ -125,6 +125,21 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
     fetchHoldings();
   }, [fetchHoldings]);
 
+  // Refresh live prices every 30 seconds for custom holdings
+  useEffect(() => {
+    const id = setInterval(async () => {
+      setEquityHoldings((prev) => {
+        if (prev.length === 0) return prev;
+        enrichWithLivePrices(prev).then((enriched) => {
+          setEquityHoldings(enriched);
+          try { localStorage.setItem('sova-equity-holdings', JSON.stringify(enriched)); } catch {}
+        });
+        return prev;
+      });
+    }, 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const addHolding = useCallback((holding: Holding, category: 'equity' | 'mf' | 'etf') => {
     const h = { ...holding, id: holding.id || `${holding.ticker}-${Date.now()}` };
     if (category === 'equity') setEquityHoldings((prev) => [...prev, h]);

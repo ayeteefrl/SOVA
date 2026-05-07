@@ -263,6 +263,164 @@ function IntegrationsPanel() {
   );
 }
 
+/* ── Delete Account Modal ────────────────────────────────────────── */
+function DeleteAccountModal({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
+  const [confirm1, setConfirm1] = useState('');
+  const [confirm2, setConfirm2] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState('');
+
+  const PHRASE1 = 'DELETE MY ACCOUNT';
+  const PHRASE2 = 'I UNDERSTAND THIS IS PERMANENT';
+
+  const isValid = confirm1 === PHRASE1 && confirm2 === PHRASE2;
+
+  async function handleDelete() {
+    if (!isValid) return;
+    setDeleting(true);
+    setError('');
+    try {
+      const res = await fetch('/api/auth/delete-account', { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete account');
+      await fetch('/api/auth/logout', { method: 'POST' });
+      router.push('/login');
+    } catch {
+      setError('Something went wrong. Please contact support.');
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[400] flex items-center justify-center p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-[#080e1d]/80 backdrop-blur-xl" />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 16 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-md rounded-2xl overflow-hidden shadow-[0_32px_80px_-12px_rgba(0,0,0,0.9)]"
+        style={{ background: '#0f1526', border: '1px solid rgba(255,77,77,0.25)' }}
+      >
+        {/* Red top accent */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#ff4444]/60 to-transparent" />
+
+        <div className="p-7">
+          {/* Header */}
+          <div className="flex items-start gap-4 mb-6">
+            <div className="w-10 h-10 rounded-xl bg-[#ff4444]/15 flex items-center justify-center shrink-0 ring-1 ring-[#ff4444]/30">
+              <span className="material-symbols-outlined text-[#ff4444] text-base">warning</span>
+            </div>
+            <div>
+              <p className="text-sm font-black text-[#ff6666]">Delete Account</p>
+              <p className="text-[11px] text-[#ff4444]/70 font-semibold mt-0.5">This action is permanent and cannot be undone</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="ml-auto w-8 h-8 flex items-center justify-center rounded-lg text-outline hover:text-on-surface transition-colors shrink-0"
+            >
+              <span className="material-symbols-outlined text-sm">close</span>
+            </button>
+          </div>
+
+          {/* Warning block */}
+          <div className="p-4 rounded-xl bg-[#ff4444]/8 ring-1 ring-[#ff4444]/20 mb-6 space-y-2">
+            <p className="text-[11px] text-[#ff8888] font-bold leading-relaxed">
+              Deleting your account will permanently remove:
+            </p>
+            <ul className="space-y-1">
+              {['Your profile and credentials', 'All portfolio holdings and trade history', 'Settings, preferences, and integrations', 'All data associated with this account'].map((item) => (
+                <li key={item} className="flex items-center gap-2 text-[10px] text-[#ff8888]/80 font-semibold">
+                  <span className="material-symbols-outlined text-xs text-[#ff4444]">remove_circle</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Confirmation inputs */}
+          <div className="space-y-4 mb-6">
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-[#ff4444]/80 mb-1.5">
+                Type exactly: <span className="text-[#ff6666]">&quot;{PHRASE1}&quot;</span>
+              </label>
+              <input
+                type="text"
+                value={confirm1}
+                onChange={(e) => setConfirm1(e.target.value)}
+                placeholder={PHRASE1}
+                className="w-full rounded-lg px-4 py-2.5 text-sm placeholder:text-outline/30 focus:outline-none focus:ring-1 transition-all"
+                style={{
+                  background: '#1a2035',
+                  border: `1px solid ${confirm1 === PHRASE1 ? '#ff4444' : '#2f3445'}`,
+                  color: confirm1 === PHRASE1 ? '#ff6666' : '#dde2f8',
+                }}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-[#ff4444]/80 mb-1.5">
+                Type exactly: <span className="text-[#ff6666]">&quot;{PHRASE2}&quot;</span>
+              </label>
+              <input
+                type="text"
+                value={confirm2}
+                onChange={(e) => setConfirm2(e.target.value)}
+                placeholder={PHRASE2}
+                className="w-full rounded-lg px-4 py-2.5 text-sm placeholder:text-outline/30 focus:outline-none focus:ring-1 transition-all"
+                style={{
+                  background: '#1a2035',
+                  border: `1px solid ${confirm2 === PHRASE2 ? '#ff4444' : '#2f3445'}`,
+                  color: confirm2 === PHRASE2 ? '#ff6666' : '#dde2f8',
+                }}
+              />
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-[11px] text-[#ff6666] font-semibold mb-4 flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm">error</span>
+              {error}
+            </p>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 h-10 rounded-lg text-[10px] font-black uppercase tracking-widest text-outline hover:text-on-surface transition-colors"
+              style={{ background: '#1e2538', border: '1px solid #2f3445' }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={!isValid || deleting}
+              className="flex-1 h-10 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{
+                background: isValid ? '#ff2222' : '#3a1a1a',
+                color: isValid ? '#fff' : '#ff4444',
+                boxShadow: isValid ? '0 0 20px rgba(255,34,34,0.35)' : 'none',
+              }}
+            >
+              {deleting ? (
+                <>
+                  <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                  Deleting…
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-sm">delete_forever</span>
+                  Delete Forever
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 /* ── Security Panel ──────────────────────────────────────────────── */
 function SecurityPanel() {
   const [sessions, setSessions] = useState<{
@@ -270,6 +428,7 @@ function SecurityPanel() {
     last_active: string; is_current?: boolean;
   }[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     fetch('/api/sessions')
@@ -285,62 +444,92 @@ function SecurityPanel() {
   }
 
   return (
-    <Card tier="low" className="p-8">
-      <SectionHeader title="Security" subtitle="Active sessions and access control" className="mb-6" />
-      <div className="space-y-6">
-        <div className="p-5 rounded-lg bg-surface-container-highest/20">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-black text-on-surface">Active Sessions</p>
-            <p className="text-[9px] font-bold text-outline uppercase tracking-widest">
-              {sessions.length} session{sessions.length !== 1 ? 's' : ''}
-            </p>
-          </div>
-          {loadingSessions ? (
-            <div className="text-center py-4">
-              <span className="material-symbols-outlined text-xl text-outline animate-spin">sync</span>
+    <>
+      <Card tier="low" className="p-8">
+        <SectionHeader title="Security" subtitle="Active sessions and access control" className="mb-6" />
+        <div className="space-y-6">
+          <div className="p-5 rounded-lg bg-surface-container-highest/20">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-black text-on-surface">Active Sessions</p>
+              <p className="text-[9px] font-bold text-outline uppercase tracking-widest">
+                {sessions.length} session{sessions.length !== 1 ? 's' : ''}
+              </p>
             </div>
-          ) : sessions.length === 0 ? (
-            <p className="text-[11px] text-outline py-4 text-center">
-              No session data yet — log in again to start tracking.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {sessions.map((s) => (
-                <div key={s.id} className={cn(
-                  'flex justify-between items-center py-3 px-3 rounded-lg',
-                  s.is_current ? 'bg-primary/8 ring-1 ring-primary/20' : 'hover:bg-surface-container-highest/20',
-                )}>
-                  <div>
-                    <p className="text-[11px] font-bold text-on-surface">
-                      {s.browser} · {s.device_name}
-                      {s.is_current && <span className="ml-2 text-[8px] font-black uppercase tracking-widest text-primary-fixed-dim bg-primary/15 px-2 py-0.5 rounded-full">Current</span>}
-                    </p>
-                    <p className="text-[9px] text-outline mt-0.5">
-                      {s.ip_address} · Last active {new Date(s.last_active).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
-                    </p>
+            {loadingSessions ? (
+              <div className="text-center py-4">
+                <span className="material-symbols-outlined text-xl text-outline animate-spin">sync</span>
+              </div>
+            ) : sessions.length === 0 ? (
+              <p className="text-[11px] text-outline py-4 text-center">
+                No session data yet — log in again to start tracking.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {sessions.map((s) => (
+                  <div key={s.id} className={cn(
+                    'flex justify-between items-center py-3 px-3 rounded-lg',
+                    s.is_current ? 'bg-primary/8 ring-1 ring-primary/20' : 'hover:bg-surface-container-highest/20',
+                  )}>
+                    <div>
+                      <p className="text-[11px] font-bold text-on-surface">
+                        {s.browser} · {s.device_name}
+                        {s.is_current && <span className="ml-2 text-[8px] font-black uppercase tracking-widest text-primary-fixed-dim bg-primary/15 px-2 py-0.5 rounded-full">Current</span>}
+                      </p>
+                      <p className="text-[9px] text-outline mt-0.5">
+                        {s.ip_address} · Last active {new Date(s.last_active).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                      </p>
+                    </div>
+                    {!s.is_current && (
+                      <button
+                        onClick={() => revokeSession(s.id)}
+                        className="text-[9px] font-black uppercase tracking-widest text-tertiary hover:underline transition-colors"
+                      >
+                        Revoke
+                      </button>
+                    )}
                   </div>
-                  {!s.is_current && (
-                    <button
-                      onClick={() => revokeSession(s.id)}
-                      className="text-[9px] font-black uppercase tracking-widest text-tertiary hover:underline transition-colors"
-                    >
-                      Revoke
-                    </button>
-                  )}
-                </div>
-              ))}
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="p-5 rounded-lg bg-surface-container-highest/20">
+            <p className="text-sm font-black text-on-surface mb-1">Change Password</p>
+            <p className="text-[10px] text-outline mb-3">Changing your password will revoke all other sessions.</p>
+            <button className="px-5 h-9 rounded-lg text-[9px] font-black uppercase tracking-widest bg-surface-container-highest/40 text-outline hover:text-on-surface transition-colors">
+              Change Password
+            </button>
+          </div>
+
+          {/* Danger Zone */}
+          <div className="p-5 rounded-lg ring-1 ring-[#ff4444]/20 bg-[#ff2222]/5">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="material-symbols-outlined text-sm text-[#ff4444]">dangerous</span>
+              <p className="text-[10px] font-black uppercase tracking-widest text-[#ff4444]">Danger Zone</p>
             </div>
-          )}
+            <p className="text-sm font-black text-[#ff6666] mb-1">Delete Account</p>
+            <p className="text-[11px] text-[#ff8888]/70 font-semibold mb-4 leading-relaxed">
+              Permanently deletes your SOVA account, all portfolio data, holdings, and trade history.
+              This action cannot be reversed.
+            </p>
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="px-5 h-9 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all hover:scale-[1.01]"
+              style={{ background: '#2a0a0a', border: '1px solid #ff4444', color: '#ff4444' }}
+            >
+              <span className="material-symbols-outlined text-sm">delete_forever</span>
+              Delete My Account
+            </button>
+          </div>
         </div>
-        <div className="p-5 rounded-lg bg-surface-container-highest/20">
-          <p className="text-sm font-black text-on-surface mb-1">Change Password</p>
-          <p className="text-[10px] text-outline mb-3">Changing your password will revoke all other sessions.</p>
-          <button className="px-5 h-9 rounded-lg text-[9px] font-black uppercase tracking-widest bg-surface-container-highest/40 text-outline hover:text-on-surface transition-colors">
-            Change Password
-          </button>
-        </div>
-      </div>
-    </Card>
+      </Card>
+
+      <AnimatePresence>
+        {showDeleteModal && (
+          <DeleteAccountModal onClose={() => setShowDeleteModal(false)} />
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 

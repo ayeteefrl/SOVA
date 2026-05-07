@@ -11,7 +11,7 @@ export function SectorBars({ data = [] }: { data?: SectorEntry[] }) {
     return (
       <div className="text-center py-8">
         <span className="material-symbols-outlined text-3xl text-outline">donut_large</span>
-        <p className="text-[11px] text-outline italic mt-2">Connect Zerodha to see sector data.</p>
+        <p className="text-[11px] text-outline italic mt-2">Add equity holdings with sectors to see exposure.</p>
       </div>
     );
   }
@@ -25,9 +25,9 @@ export function SectorBars({ data = [] }: { data?: SectorEntry[] }) {
           </p>
           <div className="flex-1 h-6 rounded-full bg-surface-container-highest/40 overflow-hidden relative">
             <motion.div
+              key={`${s.sector}-${s.weight.toFixed(1)}`}
               initial={{ width: 0 }}
-              whileInView={{ width: `${(s.weight / max) * 100}%` }}
-              viewport={{ once: true, margin: '-20px' }}
+              animate={{ width: `${(s.weight / max) * 100}%` }}
               transition={{ duration: 1, delay: i * 0.07, ease: [0.4, 0, 0.2, 1] }}
               className="h-full rounded-full"
               style={{

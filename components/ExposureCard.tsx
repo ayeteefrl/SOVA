@@ -3,34 +3,31 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { SectorBars } from '@/components/charts/SectorBars';
-import { equityHoldings, sectorExposure } from '@/lib/data';
+import { useHoldings } from '@/components/HoldingsContext';
+import type { Holding } from '@/lib/data';
 
 type View = 'sector' | 'equity';
 
 /* ── risk score engine ─────────────────────────────────────────────── */
-function computeRisk() {
-  const total = equityHoldings.reduce((s, h) => s + h.value, 0);
-  const weights = equityHoldings.map((h) => h.value / total);
+function computeRisk(holdings: Holding[]) {
+  const total = holdings.reduce((s, h) => s + h.value, 0);
+  if (total === 0) return { score: 0, hhi: 0, top5: 0, tips: [] };
 
-  // Herfindahl–Hirschman Index (0–1, lower = more diversified)
+  const weights = holdings.map((h) => h.value / total);
+
   const hhi = weights.reduce((s, w) => s + w * w, 0);
 
-  // Top-5 concentration
   const sorted = [...weights].sort((a, b) => b - a);
   const top5 = sorted.slice(0, 5).reduce((s, w) => s + w, 0);
 
-  // Sector count
-  const sectors = new Set(equityHoldings.map((h) => h.sector).filter(Boolean));
-  const sectorScore = Math.min(sectors.size / 8, 1); // ideal ≥ 8 sectors
+  const sectors = new Set(holdings.map((h) => h.sector).filter(Boolean));
+  const sectorScore = Math.min(sectors.size / 8, 1);
 
-  // Holdings count score
-  const holdingScore = Math.min(equityHoldings.length / 15, 1); // ideal ≥ 15
+  const holdingScore = Math.min(holdings.length / 15, 1);
 
-  // Weighted average daily volatility proxy
-  const avgVol = equityHoldings.reduce((s, h) => s + Math.abs(h.daily) * (h.value / total), 0);
-  const volScore = Math.max(0, 1 - avgVol / 3); // >3% avg daily = max risk
+  const avgVol = holdings.reduce((s, h) => s + Math.abs(h.daily) * (h.value / total), 0);
+  const volScore = Math.max(0, 1 - avgVol / 3);
 
-  // Composite 0–100 (higher = safer)
   const raw =
     (1 - hhi) * 0.30 +
     (1 - top5) * 0.25 +
@@ -40,7 +37,6 @@ function computeRisk() {
 
   const score = Math.round(raw * 100);
 
-  // Pointers
   const tips: { icon: string; color: string; text: string }[] = [];
 
   if (hhi > 0.2)
@@ -61,22 +57,31 @@ function computeRisk() {
   else
     tips.push({ icon: 'check_circle', color: '#4edea3', text: 'Portfolio volatility is contained.' });
 
-  if (equityHoldings.length < 8)
+  if (holdings.length < 8)
     tips.push({ icon: 'add_circle', color: '#ffb2b7', text: 'Under 8 holdings — add positions to spread idiosyncratic risk.' });
 
   return { score, hhi, top5, tips };
 }
 
 /* ── equity horizontal bar ─────────────────────────────────────────── */
-function EquityMap() {
-  const total = equityHoldings.reduce((s, h) => s + h.value, 0);
-  const sorted = [...equityHoldings].sort((a, b) => b.value - a.value);
+function EquityMap({ holdings }: { holdings: Holding[] }) {
+  const total = holdings.reduce((s, h) => s + h.value, 0);
+  const sorted = [...holdings].sort((a, b) => b.value - a.value);
   const colors = ['#adc6ff', '#4edea3', '#8b9dff', '#ffb2b7', '#D4AF37', '#ff9b6e', '#c084fc', '#5eead4', '#6ffbbe', '#ff516a'];
+
+  if (!holdings.length) {
+    return (
+      <div className="text-center py-8">
+        <span className="material-symbols-outlined text-3xl text-outline">inventory_2</span>
+        <p className="text-[11px] text-outline italic mt-2">No equity holdings found.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2 overflow-y-auto max-h-64 pr-1 scrollbar-thin">
       {sorted.map((h, i) => {
-        const pct = (h.value / total) * 100;
+        const pct = total > 0 ? (h.value / total) * 100 : 0;
         const color = colors[i % colors.length];
         return (
           <div key={h.ticker || h.name} className="group">
@@ -124,8 +129,8 @@ function EquityMap() {
 }
 
 /* ── risk panel ────────────────────────────────────────────────────── */
-function RiskPanel() {
-  const { score, hhi, top5, tips } = useMemo(computeRisk, []);
+function RiskPanel({ holdings }: { holdings: Holding[] }) {
+  const { score, hhi, top5, tips } = useMemo(() => computeRisk(holdings), [holdings]);
 
   const color =
     score >= 70 ? '#4edea3' :
@@ -136,6 +141,8 @@ function RiskPanel() {
     score >= 70 ? 'Low Risk' :
     score >= 45 ? 'Moderate Risk' :
     'High Risk';
+
+  if (!holdings.length) return null;
 
   return (
     <div className="mt-6 pt-5 border-t border-outline-variant/10">
@@ -151,7 +158,6 @@ function RiskPanel() {
             <p className="text-2xl font-black tabular-nums" style={{ color }}>{score}</p>
             <p className="text-[9px] font-black uppercase tracking-widest" style={{ color }}>{label}</p>
           </div>
-          {/* Mini gauge arc */}
           <svg width="44" height="44" viewBox="0 0 44 44">
             <circle cx="22" cy="22" r="18" fill="none" stroke="#2f3445" strokeWidth="4" />
             <circle
@@ -209,6 +215,21 @@ function RiskPanel() {
 /* ── main component ────────────────────────────────────────────────── */
 export function ExposureCard() {
   const [view, setView] = useState<View>('sector');
+  const { equityHoldings } = useHoldings();
+
+  // Derive sector data from live holdings
+  const totalEquityValue = equityHoldings.reduce((a, h) => a + h.value, 0);
+  const sectorMap = new Map<string, number>();
+  for (const h of equityHoldings) {
+    const sector = h.sector ?? 'Other';
+    sectorMap.set(sector, (sectorMap.get(sector) ?? 0) + h.value);
+  }
+  const sectorData = Array.from(sectorMap.entries())
+    .map(([sector, value]) => ({
+      sector,
+      weight: totalEquityValue > 0 ? (value / totalEquityValue) * 100 : 0,
+    }))
+    .sort((a, b) => b.weight - a.weight);
 
   return (
     <div className="flex flex-col h-full">
@@ -232,10 +253,10 @@ export function ExposureCard() {
       </div>
 
       <div className={view === 'equity' ? 'overflow-y-auto' : ''}>
-        {view === 'sector' ? <SectorBars /> : <EquityMap />}
+        {view === 'sector' ? <SectorBars data={sectorData} /> : <EquityMap holdings={equityHoldings} />}
       </div>
 
-      <RiskPanel />
+      <RiskPanel holdings={equityHoldings} />
     </div>
   );
 }

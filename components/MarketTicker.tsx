@@ -114,7 +114,9 @@ export function MarketTicker() {
     if (!isDragging.current || !trackRef.current) return;
     isDragging.current = false;
     const delta = e.clientX - dragStartX.current;
-    resumeFromX(baseX.current + delta);
+    const newX = baseX.current + delta;
+    baseX.current = newX; // persist so onMouseLeave doesn't revert
+    resumeFromX(newX);
   }, [resumeFromX]);
 
   useEffect(() => {

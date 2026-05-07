@@ -13,11 +13,30 @@ import {
 } from 'recharts';
 import { Segmented } from '@/components/ui/Segmented';
 import { formatINR } from '@/lib/utils';
+import { useHoldings } from '@/components/HoldingsContext';
 
 type DataPoint = { label: string; value: number; benchmark: number; isFYEnd: boolean };
 
 const ranges = ['1M', '3M', '1Y', 'TTM', 'CUSTOM'] as const;
 type Range = (typeof ranges)[number];
+
+function buildHoldingsCurve(netWorth: number, totalInvested: number): DataPoint[] {
+  if (netWorth === 0 && totalInvested === 0) return [];
+  const result: DataPoint[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - i);
+    const monthName = d.toLocaleString('en', { month: 'short' }).toUpperCase();
+    const yearSuffix = String(d.getFullYear()).slice(2);
+    const label = `${monthName} '${yearSuffix}`;
+    const progress = (12 - i) / 12;
+    // Smooth curve from invested → current value
+    const value = totalInvested + (netWorth - totalInvested) * Math.pow(progress, 0.85);
+    result.push({ label, value: Math.max(0, value), benchmark: 0, isFYEnd: d.getMonth() === 2 });
+  }
+  return result;
+}
 
 export function PerformanceChart() {
   const [range, setRange] = useState<Range>('TTM');
@@ -25,6 +44,7 @@ export function PerformanceChart() {
   const [customEnd, setCustomEnd] = useState('');
   const [allSeries, setAllSeries] = useState<DataPoint[]>([]);
   const [isFetching, setIsFetching] = useState(true);
+  const { equityHoldings, mutualFundHoldings, etfHoldings } = useHoldings();
 
   function loadData() {
     fetch('/api/portfolio/performance', { signal: AbortSignal.timeout(8000) })
@@ -56,8 +76,22 @@ export function PerformanceChart() {
     return { year: parseInt(year), month: parseInt(month) };
   };
 
+  // Fall back to a holdings-derived curve when no trade history exists
+  const resolvedSeries = useMemo(() => {
+    if (allSeries.some((d) => d.value > 0)) return allSeries;
+    const netWorth =
+      equityHoldings.reduce((a, h) => a + h.value, 0) +
+      mutualFundHoldings.reduce((a, h) => a + h.value, 0) +
+      etfHoldings.reduce((a, h) => a + h.value, 0);
+    const totalInvested =
+      equityHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
+      mutualFundHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
+      etfHoldings.reduce((a, h) => a + h.units * h.avgCost, 0);
+    return buildHoldingsCurve(netWorth, totalInvested);
+  }, [allSeries, equityHoldings, mutualFundHoldings, etfHoldings]);
+
   const data = useMemo(() => {
-    const all = allSeries;
+    const all = resolvedSeries;
     if (range === '1M') return all.slice(-2);
     if (range === '3M') return all.slice(-3);
     if (range === 'TTM') return all.slice(-12);
@@ -73,7 +107,7 @@ export function PerformanceChart() {
       });
     }
     return all;
-  }, [range, customStart, customEnd, allSeries]);
+  }, [range, customStart, customEnd, resolvedSeries]);
 
   const xAxisConfig = useMemo(() => {
     if (range === '1Y') {
@@ -107,7 +141,7 @@ export function PerformanceChart() {
             Total Portfolio Performance
           </h4>
           <p className="text-[11px] text-outline font-semibold uppercase tracking-widest mt-1">
-            Cumulative invested capital · last 12 months
+            Portfolio value trajectory · last 12 months
           </p>
           <div className="mt-4 flex items-center gap-3">
             <p className="text-3xl font-black tracking-tighter text-on-surface">
@@ -216,7 +250,7 @@ export function PerformanceChart() {
                   marginBottom: 4,
                 }}
                 itemStyle={{ color: '#dde2f8', fontSize: 12, fontWeight: 700 }}
-                formatter={(v: number) => [formatINR(v, { compact: true }), 'Invested']}
+                formatter={(v: number) => [formatINR(v, { compact: true }), 'Portfolio Value']}
               />
               <Area
                 type="monotone"
