@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 
 type TickerEntry = { symbol: string; price: number; change: number };
@@ -31,9 +31,12 @@ function fmt(price: number, symbol: string) {
 
 export function MarketTicker() {
   const [tickers, setTickers] = useState<TickerEntry[]>(FALLBACK);
-  const [isPaused, setIsPaused] = useState(false);
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [hoveredSymbol, setHoveredSymbol] = useState<string | null>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const baseX = useRef(0);
+  const isAnimating = useRef(true);
 
   const fetchData = async () => {
     try {
@@ -48,36 +51,126 @@ export function MarketTicker() {
 
   useEffect(() => {
     fetchData();
-    // Refresh every 5 seconds for near-real-time prices
-    intervalRef.current = setInterval(fetchData, 5000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    const id = setInterval(fetchData, 5000);
+    return () => clearInterval(id);
   }, []);
 
-  // Triple the list so even on wide screens the strip is full before the loop point
-  const items = [...tickers, ...tickers, ...tickers];
+  // Double list — animation uses -50% which equals exactly one copy width
+  const items = [...tickers, ...tickers];
+
+  // Read current CSS-animated translateX from computed style
+  const getCurrentX = useCallback((): number => {
+    const el = trackRef.current;
+    if (!el) return 0;
+    const t = getComputedStyle(el).transform;
+    if (!t || t === 'none') return 0;
+    return new DOMMatrix(t).m41;
+  }, []);
+
+  // Freeze element at its current animated position, removing the animation
+  const freeze = useCallback(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const x = getCurrentX();
+    baseX.current = x;
+    el.style.animation = 'none';
+    el.style.transform = `translateX(${x}px)`;
+    isAnimating.current = false;
+  }, [getCurrentX]);
+
+  // Resume animation from a given pixel offset, using negative animation-delay
+  const resumeFromX = useCallback((x: number) => {
+    const el = trackRef.current;
+    if (!el) return;
+    const halfWidth = el.scrollWidth / 2;
+    if (halfWidth === 0) return;
+    // Normalize x into [-halfWidth, 0]
+    let norm = x % halfWidth;
+    if (norm > 0) norm -= halfWidth;
+    const delaySec = (norm / halfWidth) * 60; // always <= 0
+    el.style.transform = '';
+    el.style.animationDelay = `${delaySec}s`;
+    el.style.animation = `ticker 60s linear ${delaySec}s infinite`;
+    isAnimating.current = true;
+  }, []);
+
+  // Mouse drag handlers
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!trackRef.current) return;
+    isDragging.current = true;
+    dragStartX.current = e.clientX;
+    freeze();
+  }, [freeze]);
+
+  const onMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDragging.current || !trackRef.current) return;
+    const delta = e.clientX - dragStartX.current;
+    const newX = baseX.current + delta;
+    trackRef.current.style.transform = `translateX(${newX}px)`;
+  }, []);
+
+  const onMouseUp = useCallback((e: MouseEvent) => {
+    if (!isDragging.current || !trackRef.current) return;
+    isDragging.current = false;
+    const delta = e.clientX - dragStartX.current;
+    resumeFromX(baseX.current + delta);
+  }, [resumeFromX]);
+
+  useEffect(() => {
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [onMouseMove, onMouseUp]);
+
+  // Wheel scroll handler
+  const onWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const el = trackRef.current;
+    if (!el) return;
+    const currentX = isAnimating.current ? getCurrentX() : baseX.current;
+    const delta = -(e.deltaX || e.deltaY) * 1.5;
+    resumeFromX(currentX + delta);
+  }, [getCurrentX, resumeFromX]);
+
+  // Hover pause/resume (but not while dragging)
+  const onMouseEnter = useCallback(() => {
+    if (isDragging.current || !trackRef.current) return;
+    freeze();
+  }, [freeze]);
+
+  const onMouseLeave = useCallback(() => {
+    if (isDragging.current || !trackRef.current) return;
+    setHoveredSymbol(null);
+    resumeFromX(baseX.current);
+  }, [resumeFromX]);
 
   return (
     <div
-      className="w-full bg-surface-container-lowest border-b border-outline-variant/10 py-2 overflow-hidden z-50 select-none"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => { setIsPaused(false); setHoveredIdx(null); }}
+      className="w-full bg-surface-container-lowest border-b border-outline-variant/10 py-2 overflow-hidden z-50 select-none cursor-grab active:cursor-grabbing"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onMouseDown={onMouseDown}
+      onWheel={onWheel}
     >
       <div
+        ref={trackRef}
         className="flex gap-12 items-center text-[10px] uppercase tracking-widest font-bold whitespace-nowrap will-change-transform animate-ticker"
-        style={{ animationPlayState: isPaused ? 'paused' : 'running' }}
       >
         {items.map((t, i) => {
-          const isHov = hoveredIdx === i;
+          const isHov = hoveredSymbol === t.symbol;
           return (
             <span
-              key={i}
-              onMouseEnter={() => setHoveredIdx(i)}
+              key={`${t.symbol}-${i < tickers.length ? 'a' : 'b'}`}
+              onMouseEnter={() => setHoveredSymbol(t.symbol)}
               className={cn(
-                'flex items-center gap-2 shrink-0 px-2 py-0.5 rounded-lg transition-all duration-200 cursor-default',
+                'flex items-center gap-2 shrink-0 px-2 py-0.5 rounded-lg transition-all duration-200 cursor-inherit',
                 isHov && 'bg-surface-container-high/40 ring-1 ring-gold/25',
               )}
             >
-              {/* Diamond — glows gold on hover */}
               <span
                 className="transition-all duration-200"
                 style={isHov
@@ -91,12 +184,12 @@ export function MarketTicker() {
                 {t.symbol}
               </span>
 
-              <span className={cn('font-black', t.change >= 0 ? 'text-secondary' : 'text-tertiary')}>
+              <span className={cn('font-black tabular-nums', t.change >= 0 ? 'text-secondary' : 'text-tertiary')}>
                 {fmt(t.price, t.symbol)}
               </span>
 
               <span className={cn(
-                'text-[9px] font-semibold',
+                'text-[9px] font-semibold tabular-nums',
                 t.change >= 0 ? 'text-secondary/70' : 'text-tertiary/70',
               )}>
                 ({t.change >= 0 ? '+' : ''}{t.change.toFixed(2)}%)

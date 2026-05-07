@@ -470,50 +470,48 @@ function ModalContent({ onClose, initialValues }: { onClose: () => void; initial
                     />
                   </div>
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-[#8c909f]">
-                        Price per Unit (₹)
-                      </label>
-                      {/* Live market price badge */}
-                      {marketPriceLoading && (
-                        <span className="text-[9px] font-bold text-[#4d8eff] flex items-center gap-1">
-                          <span className="material-symbols-outlined text-xs animate-spin" style={{ animationDuration: '0.8s' }}>progress_activity</span>
-                          Fetching price…
-                        </span>
-                      )}
-                      {!marketPriceLoading && marketPrice != null && (
-                        <motion.button
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          onClick={() => setPrice(String(marketPrice))}
-                          title="Click to use market price"
-                          className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-[#4d8eff]/20 transition-colors group"
-                          style={{ border: '1px solid #4d8eff30' }}
-                        >
-                          <span className="text-[9px] font-black uppercase tracking-widest text-[#8c909f] group-hover:text-[#adc6ff]">Market</span>
-                          <span className="text-[11px] font-black text-[#adc6ff]">
-                            ₹{marketPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                          {marketPriceChange != null && (
-                            <span className={cn(
-                              'text-[9px] font-black',
-                              marketPriceChange >= 0 ? 'text-[#4edea3]' : 'text-[#ffb2b7]'
-                            )}>
-                              {marketPriceChange >= 0 ? '+' : ''}{marketPriceChange.toFixed(2)}%
-                            </span>
-                          )}
-                          <span className="material-symbols-outlined text-[10px] text-[#424754] group-hover:text-[#4d8eff]">north_east</span>
-                        </motion.button>
-                      )}
-                    </div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2">
+                      Price per Unit (₹)
+                    </label>
                     <input
                       type="number"
                       value={price}
                       onChange={(e) => setPrice(e.target.value)}
-                      placeholder={marketPrice != null ? `Market: ₹${marketPrice.toLocaleString('en-IN')}` : 'Market or Limit price'}
+                      placeholder="Market or Limit price"
                       className="w-full rounded-lg px-4 py-3 text-sm text-[#dde2f8] placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50"
                       style={{ background: '#1a2035', border: '1px solid #2f3445' }}
                     />
+                    {/* Live market price hint — appears below input, no layout shift */}
+                    {marketPriceLoading && (
+                      <p className="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-[#4d8eff]">
+                        <span className="material-symbols-outlined text-xs animate-spin" style={{ animationDuration: '0.8s' }}>progress_activity</span>
+                        Fetching live price…
+                      </p>
+                    )}
+                    {!marketPriceLoading && marketPrice != null && (
+                      <motion.button
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        onClick={() => setPrice(String(marketPrice))}
+                        title="Click to use market price"
+                        className="mt-1.5 flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-[#4d8eff]/20 transition-colors group"
+                        style={{ border: '1px solid #4d8eff30' }}
+                      >
+                        <span className="text-[9px] font-black uppercase tracking-widest text-[#8c909f] group-hover:text-[#adc6ff]">Market</span>
+                        <span className="text-[11px] font-black text-[#adc6ff]">
+                          ₹{marketPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                        {marketPriceChange != null && (
+                          <span className={cn(
+                            'text-[9px] font-black',
+                            marketPriceChange >= 0 ? 'text-[#4edea3]' : 'text-[#ffb2b7]'
+                          )}>
+                            {marketPriceChange >= 0 ? '+' : ''}{marketPriceChange.toFixed(2)}%
+                          </span>
+                        )}
+                        <span className="material-symbols-outlined text-[10px] text-[#424754] group-hover:text-[#4d8eff]">north_east</span>
+                      </motion.button>
+                    )}
                   </div>
                 </div>
               )}

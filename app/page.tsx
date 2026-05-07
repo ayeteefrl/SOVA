@@ -237,7 +237,7 @@ export default function HomePage() {
               ⟡ SOVA Ledger · Morning Brief
             </p>
             <h1 className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.02] text-on-surface">
-              Good morning, <span className="gradient-text-gold">{firstName}</span>.
+              Good morning, <span className="gradient-text-gold" style={{ paddingRight: '0.1em' }}>{firstName}</span>.
             </h1>
             {netWorth > 0 ? (
               <p className="text-sm text-on-surface-variant font-medium mt-3 max-w-lg">

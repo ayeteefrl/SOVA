@@ -16,7 +16,11 @@ import { formatINR } from '@/lib/utils';
 
 type ChartType = 'pie' | 'bar' | 'line';
 
-const COLORS = ['#adc6ff', '#4edea3', '#8b9dff', '#ffb2b7', '#D4AF37', '#ff9b6e', '#c084fc', '#5eead4'];
+const COLORS = [
+  '#adc6ff', '#4edea3', '#8b9dff', '#ffb2b7', '#D4AF37', '#ff9b6e', '#c084fc', '#5eead4',
+  '#60a5fa', '#34d399', '#f472b6', '#fbbf24', '#a78bfa', '#fb923c', '#38bdf8', '#4ade80',
+  '#e879f9', '#facc15', '#818cf8', '#f87171',
+];
 
 const activeShape = (props: any) => {
   const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;

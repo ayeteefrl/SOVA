@@ -1,11 +1,36 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { cn } from '@/lib/utils';
 import { useSettings, type ThemeId } from '@/components/SettingsContext';
+
+function LogoutButton() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogout() {
+    setLoading(true);
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch { /* silent */ }
+    router.push('/login');
+  }
+
+  return (
+    <button
+      onClick={handleLogout}
+      disabled={loading}
+      className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all text-[#ff4444] hover:bg-[#ff4444]/10 disabled:opacity-50"
+    >
+      <span className="material-symbols-outlined text-sm">logout</span>
+      {loading ? 'Logging out…' : 'Log Out'}
+    </button>
+  );
+}
 
 const sections = [
   { id: 'profile', label: 'Profile', icon: 'person' },
@@ -375,6 +400,7 @@ export default function SettingsPage() {
     });
     setSaving(false);
     setSaved(true);
+    window.dispatchEvent(new Event('sova:profile-updated'));
     setTimeout(() => setSaved(false), 2500);
   }
 
@@ -396,6 +422,26 @@ export default function SettingsPage() {
 
         {/* Side nav */}
         <Card tier="low" className="p-4 h-fit sticky top-4">
+          {/* SOVA logo */}
+          <div className="flex items-center gap-3 px-2 py-3 mb-3 border-b border-outline-variant/10">
+            <div className="w-9 h-9 shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-full h-full">
+                <defs>
+                  <linearGradient id="sova-settings-g" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#adc6ff" />
+                    <stop offset="100%" stopColor="#D4AF37" />
+                  </linearGradient>
+                </defs>
+                <rect width="32" height="32" rx="6" fill="#0d1322" />
+                <path d="M8 22 L8 10 L16 18 L24 10 L24 22" fill="none" stroke="url(#sova-settings-g)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-black tracking-tighter gradient-text-primary">SOVA</p>
+              <p className="text-[9px] uppercase tracking-widest text-outline font-semibold">Settings</p>
+            </div>
+          </div>
+
           <div className="space-y-1">
             {sections.map((s) => (
               <button
@@ -412,6 +458,11 @@ export default function SettingsPage() {
                 {s.label}
               </button>
             ))}
+          </div>
+
+          {/* Logout */}
+          <div className="mt-4 pt-4 border-t border-outline-variant/10">
+            <LogoutButton />
           </div>
         </Card>
 

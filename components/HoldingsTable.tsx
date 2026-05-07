@@ -89,7 +89,7 @@ export function HoldingsTable({
       {/* ── Desktop Table (md+) ── */}
       <div className="hidden md:block overflow-x-auto -mx-4 px-4">
         <div className="min-w-[980px]">
-          <div className="grid grid-cols-[2fr_0.7fr_0.8fr_0.8fr_1fr_1fr_0.8fr_0.8fr_0.6fr_auto] gap-3 px-4 py-3 border-b border-outline-variant/10">
+          <div className="grid grid-cols-[2fr_0.6fr_0.75fr_0.75fr_0.8fr_0.8fr_0.7fr_0.7fr_0.55fr_auto] gap-3 px-4 py-3 border-b border-outline-variant/10">
             <Header k="name" label="Instrument" />
             <div className="text-right"><Header k="value" label="Units" right /></div>
             <div className="text-right"><Header k="value" label="Avg Cost" right /></div>
@@ -108,7 +108,7 @@ export function HoldingsTable({
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: i * 0.03 }}
-                className="grid grid-cols-[2fr_0.7fr_0.8fr_0.8fr_1fr_1fr_0.8fr_0.8fr_0.6fr_auto] gap-3 px-4 py-4 items-center hover:bg-surface-container-highest/20 rounded-lg transition-colors group"
+                className="grid grid-cols-[2fr_0.6fr_0.75fr_0.75fr_0.8fr_0.8fr_0.7fr_0.7fr_0.55fr_auto] gap-3 px-4 py-4 items-center hover:bg-surface-container-highest/20 rounded-lg transition-colors group"
               >
                 <div>
                   <p className="text-xs font-bold text-on-surface">{h.name}</p>

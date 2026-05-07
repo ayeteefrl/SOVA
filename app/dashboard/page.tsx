@@ -151,11 +151,7 @@ function TaxDetailModal({ candidate, onClose }: { candidate: TaxCandidate; onClo
 }
 
 export default function DashboardPage() {
-  const { equityHoldings, isLoading: holdingsLoading } = useHoldings();
-  const [portfolioData, setPortfolioData] = useState<{
-    netWorth: number; dayChange: number; dayChangePct: number;
-    allTimeGain: number; equityValue: number; mfValue: number;
-  } | null>(null);
+  const { equityHoldings, mutualFundHoldings, etfHoldings, isLoading: holdingsLoading } = useHoldings();
   const [selectedTaxCandidate, setSelectedTaxCandidate] = useState<TaxCandidate | null>(null);
   const [monthlyPL, setMonthlyPL] = useState<{ label: string; value: number }[]>(() =>
     Array.from({ length: 12 }, (_, i) => {
@@ -164,14 +160,6 @@ export default function DashboardPage() {
       return { label: d.toLocaleString('en', { month: 'short' }).toUpperCase(), value: 0 };
     }),
   );
-
-  const fetchPortfolio = useCallback(async () => {
-    const res = await fetch('/api/kite/portfolio');
-    if (res.ok) {
-      const data = await res.json();
-      setPortfolioData(data);
-    }
-  }, []);
 
   const fetchMonthlyPnl = useCallback(async () => {
     const res = await fetch('/api/trades/monthly-pnl');
@@ -182,12 +170,11 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetchPortfolio();
     fetchMonthlyPnl();
-    const handler = () => { fetchPortfolio(); fetchMonthlyPnl(); };
+    const handler = () => fetchMonthlyPnl();
     window.addEventListener('sova:refresh', handler);
     return () => window.removeEventListener('sova:refresh', handler);
-  }, [fetchPortfolio, fetchMonthlyPnl]);
+  }, [fetchMonthlyPnl]);
 
   // Derive sector exposure from equity holdings
   const sectorMap = new Map<string, number>();
@@ -203,11 +190,22 @@ export default function DashboardPage() {
     }))
     .sort((a, b) => b.weight - a.weight);
 
-  // Compute real returns from holdings
-  const totalInvested = equityHoldings.reduce((a, h) => a + h.units * h.avgCost, 0);
-  const totalCurrent = equityHoldings.reduce((a, h) => a + h.value, 0);
+  // Compute real returns from all holdings
+  const equityValue = equityHoldings.reduce((a, h) => a + h.value, 0);
+  const mfValue = mutualFundHoldings.reduce((a, h) => a + h.value, 0);
+  const etfValue = etfHoldings.reduce((a, h) => a + h.value, 0);
+  const totalCurrent = equityValue + mfValue + etfValue;
+  const totalInvested =
+    equityHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
+    mutualFundHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
+    etfHoldings.reduce((a, h) => a + h.units * h.avgCost, 0);
   const totalReturn = totalCurrent - totalInvested;
   const totalReturnPct = totalInvested > 0 ? (totalReturn / totalInvested) * 100 : 0;
+  const dayChangeAbs =
+    equityHoldings.reduce((a, h) => a + (h.value * h.daily) / 100, 0) +
+    mutualFundHoldings.reduce((a, h) => a + (h.value * h.daily) / 100, 0) +
+    etfHoldings.reduce((a, h) => a + (h.value * h.daily) / 100, 0);
+  const dayChangePct = totalCurrent > 0 ? (dayChangeAbs / totalCurrent) * 100 : 0;
 
   // Tax harvesting candidates from real holdings
   const taxCandidates = computeTaxCandidates(equityHoldings);
@@ -219,11 +217,11 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         <KPICard
           label="Net Worth"
-          value={portfolioData?.netWorth ?? totalCurrent}
+          value={totalCurrent}
           format="inr"
           accent="primary"
           icon="insights"
-          sub={portfolioData ? `Equity ${formatINR(portfolioData.equityValue, { compact: true })} · MF ${formatINR(portfolioData.mfValue, { compact: true })}` : 'From holdings'}
+          sub={`Eq ${formatINR(equityValue, { compact: true })} · MF ${formatINR(mfValue, { compact: true })} · ETF ${formatINR(etfValue, { compact: true })}`}
         />
         <KPICard
           label="Total Return"
@@ -235,19 +233,19 @@ export default function DashboardPage() {
         />
         <KPICard
           label="Day Change"
-          value={portfolioData?.dayChangePct ?? 0}
+          value={dayChangePct}
           format="percent"
-          accent={((portfolioData?.dayChangePct ?? 0) >= 0) ? 'positive' : 'negative'}
+          accent={dayChangePct >= 0 ? 'positive' : 'negative'}
           icon="timeline"
-          sub={portfolioData ? formatINR(portfolioData.dayChange, { compact: true }) : '—'}
+          sub={formatINR(dayChangeAbs, { compact: true })}
         />
         <KPICard
           label="All‑Time Gain"
-          value={portfolioData?.allTimeGain ?? totalReturn}
+          value={totalReturn}
           format="inr"
-          accent={(portfolioData?.allTimeGain ?? totalReturn) >= 0 ? 'positive' : 'negative'}
+          accent={totalReturn >= 0 ? 'positive' : 'negative'}
           icon="flag"
-          sub={`${equityHoldings.length} equity positions`}
+          sub={`${equityHoldings.length + mutualFundHoldings.length + etfHoldings.length} positions`}
         />
       </div>
 
@@ -261,7 +259,7 @@ export default function DashboardPage() {
         <Card tier="low" className="p-8 lg:col-span-2">
           <SectionHeader
             title="Monthly P&L"
-            subtitle="Realised P&L from logged trades · Connect Zerodha for broker data"
+            subtitle="Realised P&L from your logged trades — last 12 months"
             className="mb-6"
           />
           <CandleChart data={monthlyPL} height={220} />
@@ -320,7 +318,7 @@ export default function DashboardPage() {
         <Card tier="low" className="p-8">
           <SectionHeader
             title="Sector Exposure"
-            subtitle={equityHoldings.length > 0 ? 'Derived from your Zerodha holdings' : 'Connect Zerodha to see sector data'}
+            subtitle={equityHoldings.length > 0 ? 'Derived from your equity holdings' : 'Add equity holdings to see sector data'}
             className="mb-6"
           />
           <SectorBars data={sectorData} />

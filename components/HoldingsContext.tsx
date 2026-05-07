@@ -49,8 +49,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       ]);
 
       if (equityRes.status === 401) {
-        const data = await equityRes.json().catch(() => ({}));
-        setNeedsKiteReconnect(data.error === 'reconnect_required');
+        setNeedsKiteReconnect(true);
         let customHoldings: Holding[] = [];
         if (customRes.ok) {
           const cdata = await customRes.json();

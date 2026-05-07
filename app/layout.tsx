@@ -39,9 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Sidebar />
           <main className="flex-1 overflow-y-auto scrollbar-thin bg-surface relative min-h-0">
             <KiteAuthBanner />
-            <div className="sticky top-0 z-30 bg-surface/80 backdrop-blur-lg">
-              <TopBar />
-            </div>
+            <TopBar />
             <PageTransition>{children}</PageTransition>
           </main>
         </ClientLayout>

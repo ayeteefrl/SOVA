@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
 interface UserProfile {
   id: string;
@@ -15,6 +15,7 @@ interface UserContextType {
   displayName: string;
   firstName: string;
   initials: string;
+  refresh: () => void;
 }
 
 const UserContext = createContext<UserContextType>({
@@ -23,19 +24,26 @@ const UserContext = createContext<UserContextType>({
   displayName: 'User',
   firstName: 'User',
   initials: 'U',
+  refresh: () => {},
 });
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchProfile = useCallback(() => {
     fetch('/api/profile')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => { if (data && !data.error) setProfile(data); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    fetchProfile();
+    window.addEventListener('sova:profile-updated', fetchProfile);
+    return () => window.removeEventListener('sova:profile-updated', fetchProfile);
+  }, [fetchProfile]);
 
   const displayName = profile?.full_name ?? 'User';
   const firstName = displayName.split(' ')[0];
@@ -47,7 +55,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     .slice(0, 2) || 'U';
 
   return (
-    <UserContext.Provider value={{ profile, loading, displayName, firstName, initials }}>
+    <UserContext.Provider value={{ profile, loading, displayName, firstName, initials, refresh: fetchProfile }}>
       {children}
     </UserContext.Provider>
   );

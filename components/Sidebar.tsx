@@ -256,7 +256,11 @@ export function Sidebar() {
               <span className="material-symbols-outlined text-sm">settings</span>
               Settings
             </Link>
-            <div className="mt-3 pt-3 border-t border-outline-variant/10 flex items-center gap-3">
+            <Link
+              href="/settings"
+              onClick={closeMobile}
+              className="mt-3 pt-3 border-t border-outline-variant/10 flex items-center gap-3 rounded-lg hover:bg-surface-container-high/20 transition-colors px-1 py-1 -mx-1"
+            >
               <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-container to-primary/40 flex items-center justify-center font-black text-on-primary-container text-sm shadow-glow shrink-0 overflow-hidden">
                 {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" /> : initials}
               </div>
@@ -266,7 +270,7 @@ export function Sidebar() {
                 </p>
                 <p className="text-[9px] text-outline uppercase tracking-wider">Premium Access</p>
               </div>
-            </div>
+            </Link>
           </>
         )}
       </div>
