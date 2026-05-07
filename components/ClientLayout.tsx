@@ -1,10 +1,23 @@
 'use client';
 
+import { useEffect } from 'react';
 import { SidebarProvider, useSidebar } from './SidebarContext';
 import { SettingsProvider } from './SettingsContext';
 import { HoldingsProvider } from './HoldingsContext';
 import { UserProvider } from './UserContext';
 import { GlobalActivityPanel } from './GlobalActivityPanel';
+
+// Silently refresh Kite token every 55 min so it doesn't expire mid-session
+function KiteKeepAlive() {
+  useEffect(() => {
+    const ping = () =>
+      fetch('/api/auth/kite/refresh', { method: 'POST' }).catch(() => {});
+    ping(); // immediate check on mount
+    const id = setInterval(ping, 55 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+  return null;
+}
 
 function LayoutInner({ children }: { children: React.ReactNode }) {
   const { mobileOpen, closeMobile } = useSidebar();
@@ -30,6 +43,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
       <HoldingsProvider>
         <SettingsProvider>
           <SidebarProvider>
+            <KiteKeepAlive />
             <LayoutInner>{children}</LayoutInner>
           </SidebarProvider>
         </SettingsProvider>

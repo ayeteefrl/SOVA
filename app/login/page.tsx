@@ -43,7 +43,13 @@ export default function LoginPage() {
   async function handleForgotPassword(e: React.FormEvent) {
     e.preventDefault();
     setForgotLoading(true);
-    await new Promise((r) => setTimeout(r, 1200)); // simulate request
+    try {
+      await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+    } catch { /* silent — always show success to prevent enumeration */ }
     setForgotSent(true);
     setForgotLoading(false);
   }

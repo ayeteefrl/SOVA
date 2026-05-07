@@ -606,11 +606,32 @@ export default function SettingsPage() {
     : profile.email?.[0]?.toUpperCase() ?? 'U';
 
   return (
-    <div className="p-8 space-y-8 pb-16">
+    <div className="p-4 md:p-8 space-y-6 md:space-y-8 pb-16">
+      {/* Mobile: horizontal tab strip */}
+      <div className="lg:hidden overflow-x-auto scrollbar-none -mx-4 px-4">
+        <div className="flex gap-2 pb-1 min-w-max">
+          {sections.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => { setActive(s.id); setSaved(false); }}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest whitespace-nowrap transition-all shrink-0',
+                active === s.id
+                  ? 'bg-surface-container-highest/60 text-gold ring-1 ring-gold/20'
+                  : 'text-outline hover:text-on-surface bg-surface-container-highest/20',
+              )}
+            >
+              <span className="material-symbols-outlined text-xs">{s.icon}</span>
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6">
 
-        {/* Side nav */}
-        <Card tier="low" className="p-4 h-fit sticky top-4">
+        {/* Desktop: side nav */}
+        <Card tier="low" className="p-4 h-fit sticky top-4 hidden lg:block">
           {/* SOVA logo */}
           <div className="flex items-center gap-3 px-2 py-3 mb-3 border-b border-outline-variant/10">
             <div className="w-9 h-9 shrink-0">
@@ -958,6 +979,13 @@ export default function SettingsPage() {
 
             </motion.div>
           </AnimatePresence>
+        </div>
+
+        {/* Mobile logout */}
+        <div className="lg:hidden pt-2">
+          <Card tier="low" className="p-3">
+            <LogoutButton />
+          </Card>
         </div>
       </div>
     </div>
