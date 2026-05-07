@@ -40,16 +40,23 @@ export default function ActivityPage() {
 
   const { updateHoldingsFromActivity } = useHoldings();
 
-  // Load manual trades from Supabase
+  // Load manual trades from Supabase + live trades from connected brokers
   useEffect(() => {
-    fetch('/api/trades')
-      .then((r) => r.ok ? r.json() : [])
-      .then((trades: Array<{
-        id: string; asset_class: string; instrument_name: string; ticker?: string;
-        action: string; units?: number; price?: number; amount: number;
-        trade_date: string; rationale?: string; notes?: string;
-      }>) => {
-        const mapped: ActivityItem[] = trades.map((t) => ({
+    async function loadActivity() {
+      setLoadingActivity(true);
+      try {
+        const [manualRes, kiteRes] = await Promise.all([
+          fetch('/api/trades'),
+          fetch('/api/kite/trades'),
+        ]);
+
+        const manualTrades: Array<{
+          id: string; asset_class: string; instrument_name: string; ticker?: string;
+          action: string; units?: number; price?: number; amount: number;
+          trade_date: string; rationale?: string; notes?: string;
+        }> = manualRes.ok ? await manualRes.json() : [];
+
+        const manualMapped: ActivityItem[] = manualTrades.map((t) => ({
           id: t.id,
           title: `${t.action} ${t.instrument_name}`,
           detail: [
@@ -69,10 +76,31 @@ export default function ActivityPage() {
           tradeInstrumentType: (t.asset_class as 'Equity' | 'MF' | 'ETF' | 'Real Estate') === 'Equity' ? 'Equity' :
                                t.asset_class === 'MF' ? 'MF' : t.asset_class === 'ETF' ? 'ETF' : 'Equity',
         }));
-        setActivityLog(mapped);
-      })
-      .catch(() => setActivityLog([]))
-      .finally(() => setLoadingActivity(false));
+
+        // Merge Zerodha trades (tagged with kite_ prefix so we don't show edit/delete)
+        let kiteActivities: ActivityItem[] = [];
+        if (kiteRes.ok) {
+          const kiteData = await kiteRes.json();
+          if (Array.isArray(kiteData.trades)) {
+            kiteActivities = kiteData.trades.map((t: ActivityItem) => ({
+              ...t,
+              id: `kite_${t.id}`,
+            }));
+          }
+        }
+
+        // Merge: manual trades first, then Kite (sorted newest first by timestamp)
+        const all = [...manualMapped, ...kiteActivities].sort((a, b) =>
+          a.timestamp > b.timestamp ? -1 : 1,
+        );
+        setActivityLog(all);
+      } catch {
+        setActivityLog([]);
+      } finally {
+        setLoadingActivity(false);
+      }
+    }
+    loadActivity();
   }, []);
 
   const filtered = useMemo(() => {
@@ -234,26 +262,29 @@ export default function ActivityPage() {
                         {a.positive ? '+' : '−'}{formatINR(a.amount)}
                       </p>
                       <div className="flex items-center gap-1">
-                        <motion.button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            editActivity(a.id);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-surface-container-high/30 rounded transition-colors"
-                          title="Edit activity"
-                        >
-                          <span className="material-symbols-outlined text-sm text-outline hover:text-primary-fixed-dim">edit</span>
-                        </motion.button>
-                        <motion.button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteActivity(a.id);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-surface-container-high/30 rounded transition-colors"
-                          title="Delete activity"
-                        >
-                          <span className="material-symbols-outlined text-sm text-outline hover:text-tertiary">delete</span>
-                        </motion.button>
+                        {!a.id.startsWith('kite_') && (
+                          <>
+                            <motion.button
+                              onClick={(e) => { e.stopPropagation(); editActivity(a.id); }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-surface-container-high/30 rounded transition-colors"
+                              title="Edit activity"
+                            >
+                              <span className="material-symbols-outlined text-sm text-outline hover:text-primary-fixed-dim">edit</span>
+                            </motion.button>
+                            <motion.button
+                              onClick={(e) => { e.stopPropagation(); deleteActivity(a.id); }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-surface-container-high/30 rounded transition-colors"
+                              title="Delete activity"
+                            >
+                              <span className="material-symbols-outlined text-sm text-outline hover:text-tertiary">delete</span>
+                            </motion.button>
+                          </>
+                        )}
+                        {a.id.startsWith('kite_') && (
+                          <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[8px] font-black uppercase tracking-widest text-outline px-1.5 py-0.5 rounded bg-surface-container-high/30">
+                            Zerodha
+                          </span>
+                        )}
                         <motion.span
                           animate={{ rotate: isExpanded ? 180 : 0 }}
                           transition={{ duration: 0.2 }}

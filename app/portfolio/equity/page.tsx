@@ -35,12 +35,13 @@ const activeShape = (props: any) => {
 };
 
 export default function EquityPage() {
-  const { equityHoldings, addHolding, removeHolding } = useHoldings();
+  const { equityHoldings, addHolding, removeHolding, updateHolding } = useHoldings();
 
   const [chartType, setChartType] = useState<ChartType>('pie');
   const [activeIdx, setActiveIdx] = useState<number | undefined>(0);
   const [showAddForm, setShowAddForm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [editHolding, setEditHolding] = useState<Holding | null>(null);
 
   const total = equityHoldings.reduce((a, b) => a + b.value, 0);
   const totalInvested = equityHoldings.reduce((a, b) => a + b.units * b.avgCost, 0);
@@ -266,7 +267,12 @@ export default function EquityPage() {
             }
             className="mb-6"
           />
-          <HoldingsTable holdings={equityHoldings} showSector onDelete={(id) => setDeleteConfirm(id)} />
+          <HoldingsTable
+            holdings={equityHoldings}
+            showSector
+            onDelete={(id) => setDeleteConfirm(id)}
+            onEdit={(h) => setEditHolding(h)}
+          />
         </Card>
 
       {/* Modals */}
@@ -288,6 +294,16 @@ export default function EquityPage() {
               setDeleteConfirm(null);
             }}
             onCancel={() => setDeleteConfirm(null)}
+          />
+        )}
+        {editHolding && (
+          <EditEquityModal
+            holding={editHolding}
+            onSave={(updates) => {
+              updateHolding(editHolding.id, updates, 'equity');
+              setEditHolding(null);
+            }}
+            onClose={() => setEditHolding(null)}
           />
         )}
       </AnimatePresence>
@@ -546,6 +562,116 @@ function AddEquityModal({
             >
               <span className="material-symbols-outlined text-sm">add</span>
               Add Equity
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// Edit Equity Modal
+function EditEquityModal({
+  holding,
+  onSave,
+  onClose,
+}: {
+  holding: Holding;
+  onSave: (updates: Partial<Holding>) => void;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(holding.name);
+  const [ticker, setTicker] = useState(holding.ticker ?? '');
+  const [units, setUnits] = useState(String(holding.units));
+  const [avgCost, setAvgCost] = useState(String(holding.avgCost));
+  const [sector, setSector] = useState(holding.sector ?? 'Other');
+
+  function handleSave() {
+    const unitsNum = parseFloat(units) || 0;
+    const costNum = parseFloat(avgCost) || 0;
+    onSave({
+      name,
+      ticker: ticker.toUpperCase() || undefined,
+      units: unitsNum,
+      avgCost: costNum,
+      sector,
+      value: unitsNum * holding.ltp,
+      total: costNum > 0 ? ((holding.ltp - costNum) / costNum) * 100 : 0,
+    });
+  }
+
+  const fieldStyle = { background: '#1a2035', border: '1px solid #2f3445' };
+  const inputCls = 'w-full rounded-lg px-4 py-2.5 text-sm text-[#dde2f8] placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50';
+
+  return (
+    <div className="fixed inset-0 z-[300] flex items-center justify-center p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-[#080e1d]/75 backdrop-blur-xl" />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 16 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-lg rounded-2xl overflow-hidden shadow-[0_32px_80px_-12px_rgba(0,0,0,0.8)]"
+        style={{ background: '#0f1526', border: '1px solid rgba(66,71,84,0.4)' }}
+      >
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[#2f3445]/60">
+          <h2 className="text-base font-black tracking-tight text-[#dde2f8] flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#adc6ff]">edit</span>
+            Edit Equity
+          </h2>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#2f3445]/60 text-[#8c909f] hover:text-[#dde2f8] transition-colors">
+            <span className="material-symbols-outlined text-lg">close</span>
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+          {/* Live price reminder */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/8 ring-1 ring-primary/20">
+            <span className="material-symbols-outlined text-sm text-primary-fixed-dim shrink-0">info</span>
+            <p className="text-[10px] text-on-surface-variant">
+              Current price: <span className="font-black text-primary-fixed-dim">₹{holding.ltp.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+              {' '}· Value will recalculate from updated units × current price.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2">Company Name</label>
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} style={fieldStyle} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2">NSE Ticker Symbol</label>
+            <input type="text" value={ticker} onChange={(e) => setTicker(e.target.value.toUpperCase())} className={inputCls} style={fieldStyle} placeholder="e.g. RELIANCE" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2">Units</label>
+              <input type="number" value={units} onChange={(e) => setUnits(e.target.value)} className={inputCls} style={fieldStyle} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2">Avg Cost (₹)</label>
+              <input type="number" value={avgCost} onChange={(e) => setAvgCost(e.target.value)} className={inputCls} style={fieldStyle} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2">Sector</label>
+            <select value={sector} onChange={(e) => setSector(e.target.value)} className={inputCls + ' [color-scheme:dark]'} style={fieldStyle}>
+              {EQUITY_SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button onClick={onClose} className="flex-1 h-11 rounded-lg text-[10px] font-black uppercase tracking-widest text-[#8c909f] hover:text-[#dde2f8] transition-colors" style={{ background: '#1e2538', border: '1px solid #2f3445' }}>
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!name || !units || !avgCost}
+              className="flex-1 h-11 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-40 hover:scale-[1.01]"
+              style={{ background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)', color: '#001a42', boxShadow: '0 0 24px rgba(173,198,255,0.2)' }}
+            >
+              <span className="material-symbols-outlined text-sm">save</span>
+              Save Changes
             </button>
           </div>
         </div>

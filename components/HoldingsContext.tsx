@@ -33,9 +33,18 @@ async function fetchLivePrice(ticker: string): Promise<{ ltp: number; daily: num
 }
 
 export function HoldingsProvider({ children }: { children: React.ReactNode }) {
-  const [equityHoldings, setEquityHoldings] = useState<Holding[]>([]);
-  const [mutualFundHoldings, setMutualFundHoldings] = useState<Holding[]>([]);
-  const [etfHoldings, setETFHoldings] = useState<Holding[]>([]);
+  const [equityHoldings, setEquityHoldings] = useState<Holding[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try { const v = localStorage.getItem('sova-equity-holdings'); return v ? JSON.parse(v) : []; } catch { return []; }
+  });
+  const [mutualFundHoldings, setMutualFundHoldings] = useState<Holding[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try { const v = localStorage.getItem('sova-mf-holdings'); return v ? JSON.parse(v) : []; } catch { return []; }
+  });
+  const [etfHoldings, setETFHoldings] = useState<Holding[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try { const v = localStorage.getItem('sova-etf-holdings'); return v ? JSON.parse(v) : []; } catch { return []; }
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [needsKiteReconnect, setNeedsKiteReconnect] = useState(false);
 

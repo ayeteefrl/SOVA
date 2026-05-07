@@ -9,6 +9,7 @@ import { SectorBars } from '@/components/charts/SectorBars';
 import { CandleChart } from '@/components/charts/CandleChart';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatINR, cn } from '@/lib/utils';
+import { computeRisk } from '@/lib/risk';
 import { useHoldings } from '@/components/HoldingsContext';
 
 type TaxCandidate = {
@@ -150,6 +151,46 @@ function TaxDetailModal({ candidate, onClose }: { candidate: TaxCandidate; onClo
   );
 }
 
+function RiskGauge({ holdings }: { holdings: { value: number; daily: number; sector?: string; weight: number }[] }) {
+  const { score } = computeRisk(holdings as any);
+  const color = score >= 70 ? '#4edea3' : score >= 45 ? '#D4AF37' : '#ffb2b7';
+  const label = score >= 70 ? 'Good' : score >= 45 ? 'Moderate' : 'Review';
+  const dashoffset = 100 - score;
+  return (
+    <div className="flex flex-col items-center w-full">
+      <div className="relative w-36 h-36">
+        <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+          <circle cx="18" cy="18" r="16" fill="none" stroke="#2f3445" strokeWidth="3" />
+          <motion.circle cx="18" cy="18" r="16" fill="none" stroke={color}
+            strokeWidth="3" strokeDasharray="100" strokeLinecap="round"
+            initial={{ strokeDashoffset: 100 }} whileInView={{ strokeDashoffset: dashoffset }}
+            viewport={{ once: true }} transition={{ duration: 1.4, ease: [0.4, 0, 0.2, 1] }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-3xl font-black" style={{ color }}>{score}</span>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-outline mt-1">{label}</span>
+        </div>
+      </div>
+      <div className="mt-6 w-full space-y-2">
+        {[
+          { l: 'Diversification', v: holdings.length > 10 ? 'Strong' : holdings.length > 5 ? 'Adequate' : 'Watch' },
+          { l: 'Concentration', v: holdings.some((h) => h.weight > 20) ? 'Watch' : 'Good' },
+          { l: 'Holdings', v: `${holdings.length} positions` },
+        ].map((r) => (
+          <div key={r.l} className="flex justify-between px-3 py-2 rounded-lg bg-surface-container-highest/20">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface">{r.l}</span>
+            <span className={cn('text-[10px] font-black uppercase tracking-widest',
+              r.v === 'Strong' || r.v === 'Good' ? 'text-secondary' :
+              r.v === 'Watch' ? 'text-tertiary' : 'text-gold',
+            )}>{r.v}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { equityHoldings, mutualFundHoldings, etfHoldings, isLoading: holdingsLoading } = useHoldings();
   const [selectedTaxCandidate, setSelectedTaxCandidate] = useState<TaxCandidate | null>(null);
@@ -259,57 +300,14 @@ export default function DashboardPage() {
         <Card tier="low" className="p-8 lg:col-span-2">
           <SectionHeader
             title="Monthly P&L"
-            subtitle="Realised P&L from your logged trades — last 12 months"
+            subtitle="Realised P&L — last 12 months"
             className="mb-6"
           />
           <CandleChart data={monthlyPL} height={220} />
         </Card>
         <Card tier="low" className="p-8">
           <SectionHeader overline="Health" title="Risk Profile" subtitle="Based on your holdings" className="mb-6" />
-          <div className="flex flex-col items-center">
-            {/* Risk gauge derived from holdings count and diversification */}
-            {(() => {
-              const diversified = equityHoldings.length > 10;
-              const concentrated = equityHoldings.some((h) => h.weight > 20);
-              const score = diversified ? (concentrated ? 65 : 78) : 50;
-              const label = score > 70 ? 'Good' : score > 55 ? 'Moderate' : 'Review';
-              const color = score > 70 ? '#4edea3' : score > 55 ? '#D4AF37' : '#ffb2b7';
-              const dashoffset = 100 - score;
-              return (
-                <>
-                  <div className="relative w-36 h-36">
-                    <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                      <circle cx="18" cy="18" r="16" fill="none" stroke="#2f3445" strokeWidth="3" />
-                      <motion.circle cx="18" cy="18" r="16" fill="none" stroke={color}
-                        strokeWidth="3" strokeDasharray="100" strokeLinecap="round"
-                        initial={{ strokeDashoffset: 100 }} whileInView={{ strokeDashoffset: dashoffset }}
-                        viewport={{ once: true }} transition={{ duration: 1.4, ease: [0.4, 0, 0.2, 1] }}
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-3xl font-black" style={{ color }}>{score}</span>
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-outline mt-1">{label}</span>
-                    </div>
-                  </div>
-                  <div className="mt-6 w-full space-y-2">
-                    {[
-                      { l: 'Diversification', v: equityHoldings.length > 10 ? 'Strong' : equityHoldings.length > 5 ? 'Adequate' : 'Watch' },
-                      { l: 'Concentration', v: concentrated ? 'Watch' : 'Good' },
-                      { l: 'Holdings', v: `${equityHoldings.length} positions` },
-                    ].map((r) => (
-                      <div key={r.l} className="flex justify-between px-3 py-2 rounded-lg bg-surface-container-highest/20">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface">{r.l}</span>
-                        <span className={cn('text-[10px] font-black uppercase tracking-widest',
-                          r.v === 'Strong' || r.v === 'Good' ? 'text-secondary' :
-                          r.v === 'Watch' ? 'text-tertiary' : 'text-gold'
-                        )}>{r.v}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              );
-            })()}
-          </div>
+          <RiskGauge holdings={equityHoldings} />
         </Card>
       </div>
 

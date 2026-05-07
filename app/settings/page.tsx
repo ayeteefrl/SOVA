@@ -421,6 +421,115 @@ function DeleteAccountModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+/* ── Change Password Modal ───────────────────────────────────────── */
+function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [show, setShow] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (next.length < 8) { setError('New password must be at least 8 characters.'); return; }
+    if (next !== confirm) { setError('Passwords do not match.'); return; }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: current, newPassword: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to change password.'); return; }
+      setSuccess(true);
+      setTimeout(onClose, 1800);
+    } catch { setError('Network error. Please try again.'); }
+    finally { setLoading(false); }
+  }
+
+  const fieldStyle = { background: '#1a2035', border: '1px solid #2f3445' };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 12 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm rounded-2xl p-8 shadow-[0_32px_80px_-12px_rgba(0,0,0,0.85)]"
+        style={{ background: '#0f1526', border: '1px solid rgba(66,71,84,0.5)' }}
+      >
+        {success ? (
+          <div className="flex flex-col items-center gap-3 py-4 text-center">
+            <span className="material-symbols-outlined text-4xl text-secondary">check_circle</span>
+            <p className="text-sm font-black text-on-surface">Password changed</p>
+            <p className="text-[11px] text-outline">All other sessions will be revoked.</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-base font-black text-on-surface">Change Password</h2>
+                <p className="text-[11px] text-outline mt-0.5">Revokes all other active sessions.</p>
+              </div>
+              <button onClick={onClose} className="text-outline hover:text-on-surface transition-colors">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {[
+                { label: 'Current Password', val: current, set: setCurrent },
+                { label: 'New Password',     val: next,    set: setNext },
+                { label: 'Confirm Password', val: confirm, set: setConfirm },
+              ].map(({ label, val, set }) => (
+                <div key={label}>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-outline mb-1.5">{label}</label>
+                  <div className="flex items-center gap-2 rounded-lg px-3" style={fieldStyle}>
+                    <span className="material-symbols-outlined text-sm text-outline shrink-0">lock</span>
+                    <input
+                      type={show ? 'text' : 'password'}
+                      value={val}
+                      onChange={(e) => set(e.target.value)}
+                      required
+                      disabled={loading}
+                      placeholder="••••••••"
+                      className="flex-1 bg-transparent py-3 text-sm text-on-surface placeholder:text-outline/40 outline-none"
+                    />
+                    {label === 'Confirm Password' && (
+                      <button type="button" onClick={() => setShow((v) => !v)} className="text-outline hover:text-on-surface transition-colors shrink-0">
+                        <span className="material-symbols-outlined text-sm">{show ? 'visibility_off' : 'visibility'}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {error && (
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-tertiary/10 ring-1 ring-tertiary/25">
+                  <span className="material-symbols-outlined text-sm text-tertiary shrink-0">error</span>
+                  <p className="text-[11px] text-tertiary font-semibold">{error}</p>
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full h-11 rounded-lg text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-60 hover:scale-[1.01] mt-2"
+                style={{ background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)', color: '#001a42', boxShadow: '0 0 24px rgba(173,198,255,0.2)' }}
+              >
+                {loading ? <><span className="w-4 h-4 rounded-full border-2 border-[#001a42]/30 border-t-[#001a42] animate-spin" />Saving…</> : <><span className="material-symbols-outlined text-sm">lock_reset</span>Update Password</>}
+              </button>
+            </form>
+          </>
+        )}
+      </motion.div>
+    </div>
+  );
+}
+
 /* ── Security Panel ──────────────────────────────────────────────── */
 function SecurityPanel() {
   const [sessions, setSessions] = useState<{
@@ -429,6 +538,7 @@ function SecurityPanel() {
   }[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   useEffect(() => {
     fetch('/api/sessions')
@@ -496,7 +606,10 @@ function SecurityPanel() {
           <div className="p-5 rounded-lg bg-surface-container-highest/20">
             <p className="text-sm font-black text-on-surface mb-1">Change Password</p>
             <p className="text-[10px] text-outline mb-3">Changing your password will revoke all other sessions.</p>
-            <button className="px-5 h-9 rounded-lg text-[9px] font-black uppercase tracking-widest bg-surface-container-highest/40 text-outline hover:text-on-surface transition-colors">
+            <button
+              onClick={() => setShowChangePassword(true)}
+              className="px-5 h-9 rounded-lg text-[9px] font-black uppercase tracking-widest bg-surface-container-highest/40 text-outline hover:text-on-surface transition-colors"
+            >
               Change Password
             </button>
           </div>
@@ -527,6 +640,11 @@ function SecurityPanel() {
       <AnimatePresence>
         {showDeleteModal && (
           <DeleteAccountModal onClose={() => setShowDeleteModal(false)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showChangePassword && (
+          <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
         )}
       </AnimatePresence>
     </>

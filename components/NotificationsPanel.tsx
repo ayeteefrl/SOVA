@@ -17,15 +17,7 @@ type Notification = {
 
 const STORAGE_KEY = 'sova_notifications';
 
-const DEFAULT_NOTIFICATIONS: Notification[] = [
-  { id: 'n1', icon: 'warning',    color: '#ffb2b7', title: 'Stop-Loss Triggered',   body: 'ASIAN PAINTS hit ₹2,890 stop-loss. Position flagged for review.',       time: '14:22 today',  read: false },
-  { id: 'n2', icon: 'autorenew',  color: '#4edea3', title: 'SIP Executed',           body: 'Parag Parikh Flexi Cap — ₹15,000 debited successfully.',               time: '11:05 today',  read: false },
-  { id: 'n3', icon: 'payments',   color: '#D4AF37', title: 'Dividend Credited',      body: 'TCS interim dividend ₹4,860 received in trading ledger.',              time: 'Yesterday',    read: false },
-  { id: 'n4', icon: 'trending_up',color: '#adc6ff', title: 'Breakout Alert',         body: 'TCS broke above 52-week high ₹4,100. Momentum bullish.',               time: '2d ago',       read: true  },
-  { id: 'n5', icon: 'autorenew',  color: '#4edea3', title: 'SIP Executed',           body: 'Mirae Asset Large Cap — ₹10,000 debited successfully.',                time: '3d ago',       read: true  },
-  { id: 'n6', icon: 'balance',    color: '#5eead4', title: 'Rebalance Suggestion',   body: 'Equity sleeve is 3.2% above target. Consider trimming.',               time: '5d ago',       read: true  },
-  { id: 'n7', icon: 'monitoring', color: '#8b9dff', title: 'Market Alert',           body: 'NIFTY 50 down 1.4% — your portfolio drawdown at 0.8%.',                time: '1w ago',       read: true  },
-];
+const DEFAULT_NOTIFICATIONS: Notification[] = [];
 
 function loadNotifications(): Notification[] {
   try {
@@ -100,7 +92,7 @@ export function NotificationsPanel({ open, onClose, onUnreadChange }: Notificati
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-            className="fixed top-[70px] right-6 z-[91] w-[400px] bg-surface-container-lowest rounded-2xl ghost-border shadow-elevated overflow-hidden"
+            className="fixed top-[76px] right-[160px] z-[91] w-[380px] bg-surface-container-lowest rounded-2xl ghost-border shadow-elevated overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/10">

@@ -81,7 +81,7 @@ export function CandleChart({
               <span key="v" style={{ color: v >= 0 ? positiveColor : negativeColor, fontWeight: 800 }}>
                 {compactINR(v)}
               </span>,
-              'P&L',
+              <span key="n" style={{ color: '#D4AF37', fontWeight: 700 }}>P&amp;L</span>,
             ]}
           />
           <Bar dataKey="value" radius={[3, 3, 1, 1]} isAnimationActive animationDuration={900}>

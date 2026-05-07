@@ -13,13 +13,21 @@ export function HoldingsTable({
   holdings,
   showSector = false,
   onDelete,
+  onEdit,
 }: {
   holdings: Holding[];
   showSector?: boolean;
   onDelete?: (id: string) => void;
+  onEdit?: (holding: Holding) => void;
 }) {
-  const [sortKey, setSortKey] = useState<SortKey>('value');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [sortKey, setSortKey] = useState<SortKey>(() => {
+    if (typeof window === 'undefined') return 'value';
+    return (localStorage.getItem('sova-sort-key') as SortKey) || 'value';
+  });
+  const [sortDir, setSortDir] = useState<SortDir>(() => {
+    if (typeof window === 'undefined') return 'desc';
+    return (localStorage.getItem('sova-sort-dir') as SortDir) || 'desc';
+  });
   const [query, setQuery] = useState('');
 
   const sorted = useMemo(() => {
@@ -45,10 +53,14 @@ export function HoldingsTable({
   }, [holdings, sortKey, sortDir, query]);
 
   const toggleSort = (k: SortKey) => {
-    if (sortKey === k) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    else {
+    if (sortKey === k) {
+      const newDir: SortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      setSortDir(newDir);
+      try { localStorage.setItem('sova-sort-dir', newDir); } catch {}
+    } else {
       setSortKey(k);
       setSortDir('desc');
+      try { localStorage.setItem('sova-sort-key', k); localStorage.setItem('sova-sort-dir', 'desc'); } catch {}
     }
   };
 
@@ -141,15 +153,26 @@ export function HoldingsTable({
                 <p className="text-xs text-right font-black text-primary-fixed-dim">
                   {h.weight.toFixed(1)}%
                 </p>
-                {onDelete && (
-                  <button
-                    onClick={() => onDelete(h.id)}
-                    className="w-7 h-7 flex items-center justify-center rounded-md text-outline hover:text-tertiary opacity-0 group-hover:opacity-100 transition-all"
-                    title="Delete"
-                  >
-                    <span className="material-symbols-outlined text-sm">close</span>
-                  </button>
-                )}
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                  {onEdit && (
+                    <button
+                      onClick={() => onEdit(h)}
+                      className="w-7 h-7 flex items-center justify-center rounded-md text-outline hover:text-primary-fixed-dim transition-colors"
+                      title="Edit"
+                    >
+                      <span className="material-symbols-outlined text-sm">edit</span>
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button
+                      onClick={() => onDelete(h.id)}
+                      className="w-7 h-7 flex items-center justify-center rounded-md text-outline hover:text-tertiary transition-colors"
+                      title="Delete"
+                    >
+                      <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
+                  )}
+                </div>
               </motion.div>
             ))}
           </div>
@@ -183,8 +206,17 @@ export function HoldingsTable({
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <DeltaChip value={h.daily} />
+                  {onEdit && (
+                    <button
+                      onClick={() => onEdit(h)}
+                      className="w-7 h-7 flex items-center justify-center rounded-md text-outline hover:text-primary-fixed-dim transition-colors"
+                      title="Edit"
+                    >
+                      <span className="material-symbols-outlined text-sm">edit</span>
+                    </button>
+                  )}
                   {onDelete && (
                     <button
                       onClick={() => onDelete(h.id)}

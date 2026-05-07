@@ -88,9 +88,10 @@ export function MarketTicker() {
     let norm = x % halfWidth;
     if (norm > 0) norm -= halfWidth;
     const delaySec = (norm / halfWidth) * 60; // always <= 0
-    el.style.transform = '';
-    el.style.animationDelay = `${delaySec}s`;
+    // Set animation BEFORE clearing inline transform so the browser renders
+    // both changes atomically — prevents a single-frame jump to position 0.
     el.style.animation = `ticker 60s linear ${delaySec}s infinite`;
+    el.style.transform = '';
     isAnimating.current = true;
   }, []);
 

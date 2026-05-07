@@ -1,13 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { Sidebar } from '@/components/Sidebar';
-import { MarketTicker } from '@/components/MarketTicker';
-import { TopBar } from '@/components/TopBar';
-import { PageTransition } from '@/components/ui/PageTransition';
-import { ClientLayout } from '@/components/ClientLayout';
-import { AuthGuard } from '@/components/AuthGuard';
-import { KiteAuthBanner } from '@/components/KiteAuthBanner';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'SOVA — Private Wealth Portfolio',
@@ -34,23 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="bg-surface text-on-surface h-screen flex flex-col">
-        <ErrorBoundary label="Market Ticker">
-          <MarketTicker />
-        </ErrorBoundary>
-        <AuthGuard>
-          <ClientLayout>
-            <ErrorBoundary label="Sidebar">
-              <Sidebar />
-            </ErrorBoundary>
-            <main className="flex-1 overflow-y-auto scrollbar-thin bg-surface relative min-h-0">
-              <KiteAuthBanner />
-              <TopBar />
-              <ErrorBoundary label="Page content">
-                <PageTransition>{children}</PageTransition>
-              </ErrorBoundary>
-            </main>
-          </ClientLayout>
-        </AuthGuard>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

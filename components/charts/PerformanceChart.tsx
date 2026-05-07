@@ -21,23 +21,6 @@ type ViewMode = '₹' | '%';
 const ranges = ['1M', '3M', '1Y', 'TTM', 'CUSTOM'] as const;
 type Range = (typeof ranges)[number];
 
-function buildHoldingsCurve(netWorth: number, totalInvested: number): DataPoint[] {
-  if (netWorth === 0 && totalInvested === 0) return [];
-  const result: DataPoint[] = [];
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(1);
-    d.setMonth(d.getMonth() - i);
-    const monthName = d.toLocaleString('en', { month: 'short' }).toUpperCase();
-    const yearSuffix = String(d.getFullYear()).slice(2);
-    const label = `${monthName} '${yearSuffix}`;
-    const progress = (12 - i) / 12;
-    const value = totalInvested + (netWorth - totalInvested) * Math.pow(progress, 0.85);
-    result.push({ label, value: Math.max(0, value), benchmark: 0, isFYEnd: d.getMonth() === 2 });
-  }
-  return result;
-}
-
 export function PerformanceChart() {
   const [range, setRange] = useState<Range>('TTM');
   const [viewMode, setViewMode] = useState<ViewMode>('₹');
@@ -46,7 +29,7 @@ export function PerformanceChart() {
   const [tradeSeries, setTradeSeries] = useState<DataPoint[]>([]);
   const [snapSeries, setSnapSeries] = useState<DataPoint[]>([]);
   const [isFetching, setIsFetching] = useState(true);
-  const { equityHoldings, mutualFundHoldings, etfHoldings } = useHoldings();
+  const { needsKiteReconnect } = useHoldings();
 
   function loadData() {
     setIsFetching(true);
@@ -83,20 +66,12 @@ export function PerformanceChart() {
     return { year: parseInt(year), month: parseInt(month) };
   };
 
-  // Priority: real daily snapshots > trade-based history > synthetic holdings curve
+  // Real data only: daily snapshots > trade-based performance history
   const resolvedSeries = useMemo(() => {
     if (snapSeries.length > 0) return snapSeries;
     if (tradeSeries.some((d) => d.value > 0)) return tradeSeries;
-    const netWorth =
-      equityHoldings.reduce((a, h) => a + h.value, 0) +
-      mutualFundHoldings.reduce((a, h) => a + h.value, 0) +
-      etfHoldings.reduce((a, h) => a + h.value, 0);
-    const totalInvested =
-      equityHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
-      mutualFundHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
-      etfHoldings.reduce((a, h) => a + h.units * h.avgCost, 0);
-    return buildHoldingsCurve(netWorth, totalInvested);
-  }, [snapSeries, tradeSeries, equityHoldings, mutualFundHoldings, etfHoldings]);
+    return [];
+  }, [snapSeries, tradeSeries]);
 
   const slicedData = useMemo(() => {
     const all = resolvedSeries;
@@ -138,7 +113,7 @@ export function PerformanceChart() {
   const maxIdx = data.length > 0 ? data.reduce((acc, d, i) => (d.value > data[acc].value ? i : acc), 0) : 0;
   const hasData = slicedData.some((d) => d.value > 0);
 
-  const dataSource = snapSeries.length > 0 ? 'Daily snapshots' : tradeSeries.some((d) => d.value > 0) ? 'Trade history' : 'Holdings estimate';
+  const dataSource = snapSeries.length > 0 ? 'Daily snapshots' : 'Trade history';
 
   return (
     <div className="w-full">
@@ -199,10 +174,30 @@ export function PerformanceChart() {
             <p className="text-[11px] text-outline font-semibold uppercase tracking-widest">Loading chart…</p>
           </div>
         ) : !hasData ? (
-          <div className="h-full flex flex-col items-center justify-center gap-2">
-            <span className="material-symbols-outlined text-3xl text-outline">show_chart</span>
-            <p className="text-sm text-outline font-semibold">Add holdings to see your portfolio trajectory</p>
-            <p className="text-[10px] text-outline/70 font-medium uppercase tracking-widest">Chart populates once you have equity, MF, or ETF positions</p>
+          <div className="h-full flex flex-col items-center justify-center gap-4">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(77,142,255,0.1)' }}>
+              <span className="material-symbols-outlined text-2xl" style={{ color: '#4d8eff' }}>link_off</span>
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-black text-on-surface">
+                {needsKiteReconnect ? 'Connect Zerodha to see information' : 'Performance history building up'}
+              </p>
+              <p className="text-[10px] text-outline font-semibold mt-1 uppercase tracking-widest">
+                {needsKiteReconnect
+                  ? 'Link your Zerodha account to track portfolio performance over time'
+                  : 'Daily snapshots will accumulate — check back tomorrow'}
+              </p>
+            </div>
+            {needsKiteReconnect && (
+              <a
+                href="/api/auth/kite/login"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all hover:scale-[1.02]"
+                style={{ background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)', color: '#001a42' }}
+              >
+                <span className="material-symbols-outlined text-sm">add_link</span>
+                Connect Zerodha
+              </a>
+            )}
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
