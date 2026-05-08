@@ -9,6 +9,7 @@ import { DeltaChip } from '@/components/ui/Chip';
 import { watchlist as defaultWatchlist } from '@/lib/data';
 import { cn, formatINR, formatDelta } from '@/lib/utils';
 import { Segmented } from '@/components/ui/Segmented';
+import { checkWatchlistAlerts } from '@/lib/alerts';
 
 const views = ['GRID', 'LIST'] as const;
 type View = (typeof views)[number];
@@ -23,6 +24,8 @@ interface WatchlistItem {
   marketCap: string;
   pe: number;
   notes?: string;
+  alertAbove?: number;
+  alertBelow?: number;
 }
 
 interface WatchlistGroup {
@@ -355,6 +358,18 @@ export default function WatchlistPage() {
       const next = allLists.map((l) => l.id === targetId ? { ...l, items: updatedItems } : l);
       setLists(next);
       saveLists(next);
+
+      // Check watchlist price alerts
+      const alertItems = updatedItems
+        .filter((item) => item.alertAbove || item.alertBelow)
+        .map((item) => ({ ticker: item.ticker, price: item.price, name: item.name }));
+      const alerts = updatedItems
+        .filter((item) => item.alertAbove || item.alertBelow)
+        .map((item) => ({ ticker: item.ticker, alertAbove: item.alertAbove, alertBelow: item.alertBelow }));
+      if (alertItems.length > 0) {
+        const fired = checkWatchlistAlerts(alertItems, alerts);
+        if (fired) window.dispatchEvent(new Event('sova:notifications-updated'));
+      }
     } finally {
       setPricesLoading(false);
     }
@@ -408,6 +423,30 @@ export default function WatchlistPage() {
 
   function removeItem(listId: string, itemId: string) {
     persist(lists.map((l) => l.id === listId ? { ...l, items: l.items.filter((i) => i.id !== itemId) } : l));
+  }
+
+  function updateItemAlert(listId: string, itemId: string, alertAbove?: number, alertBelow?: number) {
+    persist(lists.map((l) => l.id === listId
+      ? { ...l, items: l.items.map((i) => i.id === itemId ? { ...i, alertAbove, alertBelow } : i) }
+      : l,
+    ));
+  }
+
+  const [alertEditId, setAlertEditId] = useState<string | null>(null);
+  const [alertAboveInput, setAlertAboveInput] = useState('');
+  const [alertBelowInput, setAlertBelowInput] = useState('');
+
+  function openAlertEdit(item: WatchlistItem) {
+    setAlertEditId(item.id);
+    setAlertAboveInput(item.alertAbove?.toString() ?? '');
+    setAlertBelowInput(item.alertBelow?.toString() ?? '');
+  }
+
+  function saveAlertEdit(itemId: string) {
+    const above = alertAboveInput ? parseFloat(alertAboveInput) : undefined;
+    const below = alertBelowInput ? parseFloat(alertBelowInput) : undefined;
+    updateItemAlert(activeId, itemId, above, below);
+    setAlertEditId(null);
   }
 
   const activeList = lists.find((l) => l.id === activeId) ?? lists[0];
@@ -502,6 +541,15 @@ export default function WatchlistPage() {
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0 ml-2">
                     <button
+                      onClick={(e) => { e.stopPropagation(); openAlertEdit(w); }}
+                      className={cn('w-6 h-6 flex items-center justify-center rounded-md transition-all',
+                        w.alertAbove || w.alertBelow ? 'text-gold' : 'text-outline hover:text-gold opacity-0 group-hover:opacity-100'
+                      )}
+                      title="Set price alert"
+                    >
+                      <span className="material-symbols-outlined text-sm">{w.alertAbove || w.alertBelow ? 'notifications_active' : 'notification_add'}</span>
+                    </button>
+                    <button
                       onClick={(e) => { e.stopPropagation(); removeItem(activeId, w.id); }}
                       className="w-6 h-6 flex items-center justify-center rounded-md text-outline hover:text-tertiary opacity-0 group-hover:opacity-100 transition-all"
                       title="Remove"
@@ -511,6 +559,78 @@ export default function WatchlistPage() {
                     <DeltaChip value={w.change} />
                   </div>
                 </div>
+
+                {/* Price Alert Edit Inline */}
+                <AnimatePresence>
+                  {alertEditId === w.id && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden mb-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="p-3 rounded-lg bg-surface-container-highest/30 space-y-2">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-gold">Price Alerts</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[8px] font-bold uppercase tracking-widest text-outline mb-1 block">Alert Above</label>
+                            <input
+                              type="number"
+                              value={alertAboveInput}
+                              onChange={(e) => setAlertAboveInput(e.target.value)}
+                              placeholder="e.g. 2500"
+                              className="w-full rounded-md px-2.5 py-1.5 text-xs text-on-surface placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-gold/50"
+                              style={{ background: '#1a2035', border: '1px solid #2f3445' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[8px] font-bold uppercase tracking-widest text-outline mb-1 block">Alert Below</label>
+                            <input
+                              type="number"
+                              value={alertBelowInput}
+                              onChange={(e) => setAlertBelowInput(e.target.value)}
+                              placeholder="e.g. 2000"
+                              className="w-full rounded-md px-2.5 py-1.5 text-xs text-on-surface placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-gold/50"
+                              style={{ background: '#1a2035', border: '1px solid #2f3445' }}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setAlertEditId(null)}
+                            className="flex-1 h-7 rounded-md text-[9px] font-black uppercase tracking-widest text-outline hover:text-on-surface transition-colors"
+                            style={{ background: '#1e2538', border: '1px solid #2f3445' }}
+                          >Cancel</button>
+                          <button
+                            onClick={() => saveAlertEdit(w.id)}
+                            className="flex-1 h-7 rounded-md text-[9px] font-black uppercase tracking-widest text-[#001a42]"
+                            style={{ background: 'linear-gradient(135deg, #D4AF37 0%, #f5d76e 100%)' }}
+                          >Save</button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Alert Badges */}
+                {(w.alertAbove || w.alertBelow) && alertEditId !== w.id && (
+                  <div className="flex gap-1.5 mb-3 flex-wrap">
+                    {w.alertAbove && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-secondary/10 text-secondary">
+                        <span className="material-symbols-outlined text-[10px]">arrow_upward</span>
+                        ₹{w.alertAbove.toLocaleString('en-IN')}
+                      </span>
+                    )}
+                    {w.alertBelow && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-tertiary/10 text-tertiary">
+                        <span className="material-symbols-outlined text-[10px]">arrow_downward</span>
+                        ₹{w.alertBelow.toLocaleString('en-IN')}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 <div className="mb-4 h-16 -mx-2">
                   <Sparkline data={w.sparkline} color={w.change >= 0 ? '#4edea3' : '#ffb2b7'} height={64} />
@@ -539,30 +659,100 @@ export default function WatchlistPage() {
         ) : (
           <div className="divide-y divide-outline-variant/10">
             {items.map((w, i) => (
+              <div key={w.id}>
               <motion.div
-                key={w.id}
                 initial={{ opacity: 0, x: -6 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.35, delay: i * 0.04 }}
-                className="grid grid-cols-[1fr_1fr_1fr_0.6fr_0.6fr_auto] gap-6 items-center px-3 py-4 rounded-lg hover:bg-surface-container-highest/30 transition-colors group"
+                className="grid grid-cols-[1fr_1fr_1fr_0.6fr_0.6fr_auto] gap-4 items-center px-3 py-4 rounded-lg hover:bg-surface-container-highest/30 transition-colors group"
               >
                 <div>
                   <p className="text-xs font-black text-on-surface">{w.name}</p>
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-outline">{w.ticker}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-outline">{w.ticker}</p>
+                    {w.alertAbove && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded-full text-[8px] font-black bg-secondary/10 text-secondary">
+                        ▲ ₹{w.alertAbove.toLocaleString('en-IN')}
+                      </span>
+                    )}
+                    {w.alertBelow && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded-full text-[8px] font-black bg-tertiary/10 text-tertiary">
+                        ▼ ₹{w.alertBelow.toLocaleString('en-IN')}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="-my-1"><Sparkline data={w.sparkline} color={w.change >= 0 ? '#4edea3' : '#ffb2b7'} /></div>
                 <p className="text-right text-sm font-black text-on-surface">{formatINR(w.price, { decimals: 2 })}</p>
                 <div className="text-right flex justify-end"><DeltaChip value={w.change} /></div>
                 <p className="text-right text-[10px] font-bold text-outline">{w.marketCap}</p>
-                <button
-                  onClick={() => removeItem(activeId, w.id)}
-                  className="w-7 h-7 flex items-center justify-center rounded-md text-outline hover:text-tertiary opacity-0 group-hover:opacity-100 transition-all"
-                  title="Remove"
-                >
-                  <span className="material-symbols-outlined text-sm">close</span>
-                </button>
+                <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={() => openAlertEdit(w)}
+                    className={cn('w-7 h-7 flex items-center justify-center rounded-md transition-all',
+                      w.alertAbove || w.alertBelow ? 'text-gold' : 'text-outline hover:text-gold opacity-0 group-hover:opacity-100'
+                    )}
+                    title="Set price alert"
+                  >
+                    <span className="material-symbols-outlined text-sm">{w.alertAbove || w.alertBelow ? 'notifications_active' : 'notification_add'}</span>
+                  </button>
+                  <button
+                    onClick={() => removeItem(activeId, w.id)}
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-outline hover:text-tertiary opacity-0 group-hover:opacity-100 transition-all"
+                    title="Remove"
+                  >
+                    <span className="material-symbols-outlined text-sm">close</span>
+                  </button>
+                </div>
               </motion.div>
+              <AnimatePresence>
+                {alertEditId === w.id && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden px-3 pb-3"
+                  >
+                    <div className="p-3 rounded-lg bg-surface-container-highest/30 flex items-end gap-3">
+                      <div className="flex-1">
+                        <label className="text-[8px] font-bold uppercase tracking-widest text-outline mb-1 block">Alert Above</label>
+                        <input
+                          type="number"
+                          value={alertAboveInput}
+                          onChange={(e) => setAlertAboveInput(e.target.value)}
+                          placeholder="e.g. 2500"
+                          className="w-full rounded-md px-2.5 py-1.5 text-xs text-on-surface placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-gold/50"
+                          style={{ background: '#1a2035', border: '1px solid #2f3445' }}
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[8px] font-bold uppercase tracking-widest text-outline mb-1 block">Alert Below</label>
+                        <input
+                          type="number"
+                          value={alertBelowInput}
+                          onChange={(e) => setAlertBelowInput(e.target.value)}
+                          placeholder="e.g. 2000"
+                          className="w-full rounded-md px-2.5 py-1.5 text-xs text-on-surface placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-gold/50"
+                          style={{ background: '#1a2035', border: '1px solid #2f3445' }}
+                        />
+                      </div>
+                      <button
+                        onClick={() => setAlertEditId(null)}
+                        className="h-[30px] px-3 rounded-md text-[9px] font-black uppercase tracking-widest text-outline hover:text-on-surface transition-colors"
+                        style={{ background: '#1e2538', border: '1px solid #2f3445' }}
+                      >Cancel</button>
+                      <button
+                        onClick={() => saveAlertEdit(w.id)}
+                        className="h-[30px] px-3 rounded-md text-[9px] font-black uppercase tracking-widest text-[#001a42]"
+                        style={{ background: 'linear-gradient(135deg, #D4AF37 0%, #f5d76e 100%)' }}
+                      >Save</button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              </div>
             ))}
           </div>
         )}

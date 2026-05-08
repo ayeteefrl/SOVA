@@ -11,7 +11,8 @@ import { SectorBars } from '@/components/charts/SectorBars';
 import { TradeList } from '@/components/TradeList';
 import { useUser } from '@/components/UserContext';
 import { useHoldings } from '@/components/HoldingsContext';
-import { formatINR } from '@/lib/utils';
+import { formatINR, cn } from '@/lib/utils';
+import { computeRebalancePlan, formatRebalanceSuggestion } from '@/lib/rebalance';
 import Link from 'next/link';
 
 const staggerVariants = {
@@ -28,16 +29,23 @@ function RebalanceModal({ onClose }: { onClose: () => void }) {
   const etfVal = etfHoldings.reduce((s, h) => s + (h.value ?? 0), 0);
   const total  = eqVal + mfVal + etfVal || 1;
 
-  const current = {
-    Equity:       Math.round((eqVal  / total) * 100),
-    'Mutual Fund': Math.round((mfVal  / total) * 100),
-    ETF:           Math.round((etfVal / total) * 100),
+  const currentSlices = [
+    { label: 'Equity', value: eqVal },
+    { label: 'Mutual Fund', value: mfVal },
+    { label: 'ETF', value: etfVal },
+  ];
+
+  const defaultTargets: Record<string, number> = {
+    Equity: Math.round((eqVal / total) * 100),
+    'Mutual Fund': Math.round((mfVal / total) * 100),
+    ETF: Math.round((etfVal / total) * 100),
   };
 
-  const [targets, setTargets] = useState<Record<string, number>>({ ...current });
+  const [targets, setTargets] = useState<Record<string, number>>({ ...defaultTargets });
+
+  const plan = computeRebalancePlan(currentSlices, targets);
 
   const fieldStyle = { background: '#1a2035', border: '1px solid #2f3445' };
-  const labelCls   = 'block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-1.5';
   const inputCls   = 'w-full rounded-lg px-3 py-2 text-sm text-[#dde2f8] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50';
 
   return (
@@ -69,57 +77,81 @@ function RebalanceModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="p-6 space-y-5">
+          {/* Drift summary badge */}
+          <div className={cn(
+            'flex items-center gap-2 px-4 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest',
+            plan.needsAction
+              ? 'bg-tertiary/10 text-tertiary'
+              : 'bg-secondary/10 text-secondary',
+          )}>
+            <span className="material-symbols-outlined text-sm">{plan.needsAction ? 'warning' : 'check_circle'}</span>
+            {plan.needsAction
+              ? `Portfolio drift: ${plan.totalDrift.toFixed(1)}% — rebalancing recommended`
+              : `Portfolio drift: ${plan.totalDrift.toFixed(1)}% — within tolerance`}
+          </div>
+
           {/* Current vs Target table */}
           <div className="grid grid-cols-3 gap-3 text-center text-[9px] font-black uppercase tracking-widest text-[#8c909f] mb-1">
             <span>Asset Class</span><span>Current</span><span>Target %</span>
           </div>
 
-          {(Object.entries(current) as [string, number][]).map(([label, pct]) => {
-            const diff = (targets[label] ?? pct) - pct;
-            return (
-              <div key={label} className="grid grid-cols-3 gap-3 items-center">
-                <span className="text-[11px] font-black text-[#dde2f8]">{label}</span>
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-sm font-black text-[#adc6ff]">{pct}%</span>
-                  {/* Mini bar */}
-                  <div className="w-full h-1.5 rounded-full bg-[#1e2538] overflow-hidden">
-                    <div className="h-full rounded-full bg-[#4d8eff]" style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={targets[label] ?? pct}
-                    onChange={(e) => setTargets((p) => ({ ...p, [label]: Number(e.target.value) }))}
-                    className={inputCls}
-                    style={fieldStyle}
-                  />
-                  <span className={`text-[10px] font-black w-10 text-right shrink-0 ${diff > 0 ? 'text-[#4edea3]' : diff < 0 ? 'text-[#ffb2b7]' : 'text-[#8c909f]'}`}>
-                    {diff > 0 ? `+${diff}%` : diff < 0 ? `${diff}%` : '—'}
-                  </span>
+          {plan.slices.map((slice) => (
+            <div key={slice.label} className="grid grid-cols-3 gap-3 items-center">
+              <span className="text-[11px] font-black text-[#dde2f8]">{slice.label}</span>
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-sm font-black text-[#adc6ff]">{slice.currentPct.toFixed(1)}%</span>
+                <div className="w-full h-1.5 rounded-full bg-[#1e2538] overflow-hidden">
+                  <div className="h-full rounded-full bg-[#4d8eff]" style={{ width: `${Math.min(slice.currentPct, 100)}%` }} />
                 </div>
               </div>
-            );
-          })}
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={targets[slice.label] ?? Math.round(slice.currentPct)}
+                  onChange={(e) => setTargets((p) => ({ ...p, [slice.label]: Number(e.target.value) }))}
+                  className={inputCls}
+                  style={fieldStyle}
+                />
+                <span className={cn('text-[10px] font-black w-10 text-right shrink-0',
+                  slice.driftPct > 0 ? 'text-[#ffb2b7]' : slice.driftPct < 0 ? 'text-[#4edea3]' : 'text-[#8c909f]',
+                )}>
+                  {slice.driftPct > 0 ? `+${slice.driftPct.toFixed(1)}%` : slice.driftPct < 0 ? `${slice.driftPct.toFixed(1)}%` : '—'}
+                </span>
+              </div>
+            </div>
+          ))}
 
-          {/* Net movement summary */}
+          {/* Trade suggestions */}
           <div className="pt-3 border-t border-[#2f3445]/60 space-y-2">
-            <p className="text-[9px] font-black uppercase tracking-widest text-[#8c909f]">Net Movement Required</p>
-            {(Object.entries(current) as [string, number][]).map(([label, pct]) => {
-              const diff = (targets[label] ?? pct) - pct;
-              if (diff === 0) return null;
-              const amt = Math.round((Math.abs(diff) / 100) * total);
+            <p className="text-[9px] font-black uppercase tracking-widest text-[#8c909f]">Suggested Actions</p>
+            {plan.slices.map((slice) => {
+              const suggestion = formatRebalanceSuggestion(slice);
               return (
-                <div key={label} className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-[#dde2f8]">{label}</span>
-                  <span className={`text-[11px] font-black ${diff > 0 ? 'text-[#4edea3]' : 'text-[#ffb2b7]'}`}>
-                    {diff > 0 ? 'Buy' : 'Sell'} ₹{amt.toLocaleString('en-IN')}
-                  </span>
+                <div key={slice.label} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      'text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded',
+                      slice.action === 'BUY' ? 'bg-[#4edea3]/15 text-[#4edea3]' :
+                      slice.action === 'SELL' ? 'bg-[#ffb2b7]/15 text-[#ffb2b7]' :
+                      'bg-[#8c909f]/15 text-[#8c909f]',
+                    )}>
+                      {slice.action}
+                    </span>
+                    <span className="text-[11px] font-bold text-[#dde2f8]">{slice.label}</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-[#8c909f]">{suggestion}</span>
                 </div>
               );
             })}
+            {plan.slices.some((s) => s.taxImpact) && (
+              <div className="mt-2 p-2.5 rounded-lg bg-gold/8 border border-gold/20">
+                <p className="text-[9px] font-bold text-gold">
+                  {plan.slices.filter((s) => s.taxImpact).map((s) => `${s.label}: ${s.taxImpact}`).join(' · ')}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 pt-1">

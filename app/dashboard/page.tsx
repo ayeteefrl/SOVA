@@ -11,6 +11,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { formatINR, cn } from '@/lib/utils';
 import { computeRisk } from '@/lib/risk';
 import { useHoldings } from '@/components/HoldingsContext';
+import {
+  computePortfolioMetrics,
+  type PortfolioMetrics,
+} from '@/lib/analytics';
 
 type TaxCandidate = {
   name: string;
@@ -194,6 +198,7 @@ function RiskGauge({ holdings }: { holdings: { value: number; daily: number; sec
 export default function DashboardPage() {
   const { equityHoldings, mutualFundHoldings, etfHoldings, isLoading: holdingsLoading } = useHoldings();
   const [selectedTaxCandidate, setSelectedTaxCandidate] = useState<TaxCandidate | null>(null);
+  const [metrics, setMetrics] = useState<PortfolioMetrics | null>(null);
   const [monthlyPL, setMonthlyPL] = useState<{ label: string; value: number }[]>(() =>
     Array.from({ length: 12 }, (_, i) => {
       const d = new Date();
@@ -216,6 +221,23 @@ export default function DashboardPage() {
     window.addEventListener('sova:refresh', handler);
     return () => window.removeEventListener('sova:refresh', handler);
   }, [fetchMonthlyPnl]);
+
+  useEffect(() => {
+    if (holdingsLoading) return;
+    const allHoldings = [...equityHoldings, ...mutualFundHoldings, ...etfHoldings];
+    if (allHoldings.length === 0) return;
+    fetch('/api/portfolio/snapshot?daily=true')
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data?.data?.length) return;
+        const snaps = data.data.map((d: { label: string; value: number; date?: string }) => ({
+          date: d.date ?? d.label,
+          value: d.value,
+        }));
+        setMetrics(computePortfolioMetrics(snaps, allHoldings));
+      })
+      .catch(() => {});
+  }, [holdingsLoading, equityHoldings, mutualFundHoldings, etfHoldings]);
 
   // Derive sector exposure from equity holdings
   const sectorMap = new Map<string, number>();
@@ -314,6 +336,81 @@ export default function DashboardPage() {
           <RiskGauge holdings={equityHoldings} />
         </Card>
       </div>
+
+      {/* Advanced Analytics */}
+      {metrics && (
+        <Card tier="low" className="p-8">
+          <SectionHeader
+            overline="Analytics"
+            title="Portfolio Health"
+            subtitle="Risk-adjusted returns & drawdown analysis"
+            className="mb-6"
+          />
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+            {[
+              {
+                label: 'Sharpe Ratio',
+                value: metrics.sharpeRatio.toFixed(2),
+                color: metrics.sharpeRatio >= 1 ? '#4edea3' : metrics.sharpeRatio >= 0.5 ? '#D4AF37' : '#ffb2b7',
+                hint: metrics.sharpeRatio >= 1 ? 'Strong' : metrics.sharpeRatio >= 0.5 ? 'Adequate' : 'Weak',
+              },
+              {
+                label: 'Sortino Ratio',
+                value: metrics.sortinoRatio.toFixed(2),
+                color: metrics.sortinoRatio >= 1.5 ? '#4edea3' : metrics.sortinoRatio >= 0.7 ? '#D4AF37' : '#ffb2b7',
+                hint: metrics.sortinoRatio >= 1.5 ? 'Strong' : metrics.sortinoRatio >= 0.7 ? 'Adequate' : 'Weak',
+              },
+              {
+                label: 'Max Drawdown',
+                value: `-${metrics.maxDrawdownPct.toFixed(1)}%`,
+                color: metrics.maxDrawdownPct <= 10 ? '#4edea3' : metrics.maxDrawdownPct <= 20 ? '#D4AF37' : '#ffb2b7',
+                hint: metrics.maxDrawdownPct <= 10 ? 'Low' : metrics.maxDrawdownPct <= 20 ? 'Moderate' : 'High',
+              },
+              {
+                label: 'Volatility',
+                value: `${metrics.volatility.toFixed(1)}%`,
+                color: metrics.volatility <= 15 ? '#4edea3' : metrics.volatility <= 25 ? '#D4AF37' : '#ffb2b7',
+                hint: metrics.volatility <= 15 ? 'Low' : metrics.volatility <= 25 ? 'Moderate' : 'High',
+              },
+              {
+                label: 'Beta',
+                value: metrics.beta.toFixed(2),
+                color: metrics.beta <= 1.1 && metrics.beta >= 0.8 ? '#4edea3' : '#D4AF37',
+                hint: metrics.beta > 1.1 ? 'Aggressive' : metrics.beta < 0.8 ? 'Defensive' : 'Neutral',
+              },
+              {
+                label: 'Risk-Free Rate',
+                value: '7.0%',
+                color: '#8c909f',
+                hint: 'IN 10Y Bond',
+              },
+            ].map((m) => (
+              <div key={m.label} className="p-4 rounded-xl bg-surface-container-highest/20 text-center">
+                <p className="text-[9px] font-black uppercase tracking-widest text-outline mb-2">{m.label}</p>
+                <p className="text-xl font-black" style={{ color: m.color }}>{m.value}</p>
+                <p className="text-[9px] font-bold uppercase tracking-widest mt-1" style={{ color: m.color }}>{m.hint}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Rolling Returns */}
+          {metrics.rollingReturns.length > 0 && (
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-outline mb-3">Rolling Returns</p>
+              <div className="flex gap-3 flex-wrap">
+                {metrics.rollingReturns.map((r) => (
+                  <div key={r.period} className="flex-1 min-w-[80px] p-3 rounded-lg bg-surface-container-highest/20 text-center">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-outline">{r.period}</p>
+                    <p className={cn('text-sm font-black mt-1', r.returnPct >= 0 ? 'text-secondary' : 'text-tertiary')}>
+                      {r.returnPct >= 0 ? '+' : ''}{r.returnPct.toFixed(1)}%
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Sector Exposure + Tax Harvesting */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

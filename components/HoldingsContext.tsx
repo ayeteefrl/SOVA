@@ -1,7 +1,8 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { Holding, ActivityItem } from '@/lib/data';
+import { checkPortfolioAlerts, checkHoldingAlerts } from '@/lib/alerts';
 
 interface HoldingsContextType {
   equityHoldings: Holding[];
@@ -165,6 +166,33 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(() => {});
   }, [isLoading, needsKiteReconnect]);
+
+  // Check portfolio alerts after fresh data loads
+  const prevNetWorthRef = useRef<number>(0);
+  useEffect(() => {
+    if (isLoading) return;
+    const all = [...equityHoldings, ...mutualFundHoldings, ...etfHoldings];
+    if (all.length === 0) return;
+
+    const currentNW = all.reduce((a, h) => a + h.value, 0);
+    const prevNW = prevNetWorthRef.current;
+
+    // Use invested amount as baseline for first comparison of the day
+    if (prevNW === 0) {
+      const invested = all.reduce((a, h) => a + h.units * h.avgCost, 0);
+      prevNetWorthRef.current = invested > 0 ? invested : currentNW;
+    }
+
+    if (prevNetWorthRef.current > 0) {
+      const portfolioFired = checkPortfolioAlerts(all, prevNetWorthRef.current);
+      const holdingFired = checkHoldingAlerts(all);
+      if (portfolioFired || holdingFired) {
+        window.dispatchEvent(new Event('sova:notifications-updated'));
+      }
+    }
+
+    prevNetWorthRef.current = currentNW;
+  }, [isLoading, equityHoldings, mutualFundHoldings, etfHoldings]);
 
   // Save a daily portfolio snapshot once holdings have loaded
   useEffect(() => {
