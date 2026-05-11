@@ -45,20 +45,21 @@ export async function GET(req: NextRequest) {
     const holdings: Holding[] = raw.map((h: any, i: number) => {
       const quoteKey = `NSE:${h.tradingsymbol}`;
       const quote = quoteMap[quoteKey];
-      // Prefer live quote ltp and accurate intraday change; fall back to holdings data
+      // Prefer live quote LTP (more real-time); fall back to holdings last_price
       const ltp = quote?.last_price ?? h.last_price;
       const value = ltp * h.quantity;
       const total = h.average_price > 0
         ? ((ltp - h.average_price) / h.average_price) * 100
         : 0;
-      const daily = quote !== undefined
-        ? quote.change_percent
-        : (h.day_change_percentage ?? 0);
-      // Absolute INR day change: use exact (ltp - prevClose) * qty from quote,
-      // or fall back to Zerodha's day_change (per-share absolute) * qty
-      const dayAbs = quote?.prev_close
-        ? (ltp - quote.prev_close) * h.quantity
-        : (h.day_change ?? 0) * h.quantity;
+
+      // ── Day P&L: use close_price from holdings (prev day's settlement close).
+      // Do NOT use day_change_percentage — that field can reference avg buy price,
+      // not the previous market close, giving wrong signs and magnitudes.
+      // Quote's ohlc.close overrides if the live quote was fetched successfully.
+      const prevClose: number = quote?.prev_close || h.close_price || 0;
+      const daily = prevClose > 0 ? ((ltp - prevClose) / prevClose) * 100 : 0;
+      const dayAbs = prevClose > 0 ? (ltp - prevClose) * h.quantity : 0;
+
       const sector = h.sector ?? sectorFromSymbol(h.tradingsymbol) ?? 'Other';
       return {
         id: `${h.tradingsymbol}-${i}`,
