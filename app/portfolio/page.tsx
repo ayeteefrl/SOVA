@@ -73,7 +73,7 @@ export default function PortfolioPage() {
 
   const allHoldings = [...equityHoldings, ...mutualFundHoldings, ...etfHoldings];
   const netWorth = allHoldings.reduce((s, h) => s + h.value, 0);
-  const dayChange = allHoldings.reduce((s, h) => s + (h.value * h.daily) / 100, 0);
+  const dayChange = allHoldings.reduce((s, h) => s + (h.dayAbs ?? (h.value * h.daily) / 100), 0);
   const dayChangePct = netWorth > 0 ? (dayChange / netWorth) * 100 : 0;
 
   const allocation = [
