@@ -7,6 +7,9 @@ import { Card } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { cn } from '@/lib/utils';
 import { useSettings, type ThemeId } from '@/components/SettingsContext';
+import { ExportPortfolio } from '@/components/ExportPortfolio';
+import { ImportModal } from '@/components/ImportModal';
+import { useHoldings } from '@/components/HoldingsContext';
 
 function LogoutButton() {
   const router = useRouter();
@@ -39,6 +42,7 @@ const sections = [
   { id: 'security', label: 'Security', icon: 'security' },
   { id: 'integrations', label: 'Integrations', icon: 'extension' },
   { id: 'appearance', label: 'Appearance', icon: 'palette' },
+  { id: 'data', label: 'Import / Export', icon: 'import_export' },
 ];
 
 const CURRENCIES = [
@@ -657,8 +661,12 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [showImport, setShowImport] = useState(false);
 
   const { theme, setTheme, avatarUrl, setAvatar, prefs, setPrefs, savePrefs } = useSettings();
+  const { equityHoldings, mutualFundHoldings, etfHoldings } = useHoldings();
+  const allHoldings = [...equityHoldings, ...mutualFundHoldings, ...etfHoldings];
+  const totalValue = allHoldings.reduce((s, h) => s + h.value, 0);
 
   // Profile state
   const [profile, setProfile] = useState({ full_name: '', email: '', mobile: '', profile_photo: '' });
@@ -1095,9 +1103,75 @@ export default function SettingsPage() {
                 </Card>
               )}
 
+              {/* ── Import / Export ── */}
+              {active === 'data' && (
+                <Card tier="low" className="p-8 space-y-8">
+                  <SectionHeader title="Import / Export" subtitle="Move portfolio data in and out of SOVA" className="mb-0" />
+
+                  {/* Import */}
+                  <div className="p-6 rounded-xl space-y-4" style={{ background: '#141c30', border: '1px solid #2f3445' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: '#D4AF37/15', border: '1px solid #D4AF37/20', backgroundColor: 'rgba(212,175,55,0.12)' }}>
+                        <span className="material-symbols-outlined text-base" style={{ color: '#D4AF37' }}>upload_file</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-[#dde2f8]">Import Portfolio</p>
+                        <p className="text-[10px] text-[#8c909f] mt-0.5">CSV or Excel · auto-logged to Activity Ledger</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-[#8c909f] leading-relaxed">
+                      Upload a CSV or XLSX file with your holdings. Required columns: <span className="text-[#adc6ff] font-semibold">Ticker</span>, <span className="text-[#adc6ff] font-semibold">Units</span>, <span className="text-[#adc6ff] font-semibold">Price</span>. Optional: Name, Action, Date, Sector, Broker, Asset Type.
+                    </p>
+                    <button
+                      onClick={() => setShowImport(true)}
+                      className="flex items-center gap-2 px-5 h-10 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all hover:scale-[1.01]"
+                      style={{ background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)', color: '#001a42', boxShadow: '0 0 16px rgba(173,198,255,0.2)' }}
+                    >
+                      <span className="material-symbols-outlined text-sm">upload</span>
+                      Choose File to Import
+                    </button>
+                  </div>
+
+                  {/* Export */}
+                  <div className="p-6 rounded-xl space-y-4" style={{ background: '#141c30', border: '1px solid #2f3445' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(78,222,163,0.12)', border: '1px solid rgba(78,222,163,0.2)' }}>
+                        <span className="material-symbols-outlined text-base" style={{ color: '#4edea3' }}>download</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-[#dde2f8]">Export Portfolio</p>
+                        <p className="text-[10px] text-[#8c909f] mt-0.5">{allHoldings.length} positions · CSV, Excel, or PDF</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-[#8c909f] leading-relaxed">
+                      Export your complete portfolio across all asset classes — Equity, Mutual Funds, and ETFs — as a CSV, Excel workbook, or a formatted PDF report.
+                    </p>
+                    <ExportPortfolio holdings={allHoldings} totalValue={totalValue} label="Export All Holdings" />
+                  </div>
+
+                  {/* Equity only */}
+                  {equityHoldings.length > 0 && (
+                    <div className="p-6 rounded-xl space-y-4" style={{ background: '#141c30', border: '1px solid #2f3445' }}>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[#8c909f]">Export by Asset Class</p>
+                      <div className="flex flex-wrap gap-3">
+                        <ExportPortfolio holdings={equityHoldings} totalValue={equityHoldings.reduce((s, h) => s + h.value, 0)} label="Equity Only" compact />
+                        {mutualFundHoldings.length > 0 && (
+                          <ExportPortfolio holdings={mutualFundHoldings} totalValue={mutualFundHoldings.reduce((s, h) => s + h.value, 0)} label="Mutual Funds" compact />
+                        )}
+                        {etfHoldings.length > 0 && (
+                          <ExportPortfolio holdings={etfHoldings} totalValue={etfHoldings.reduce((s, h) => s + h.value, 0)} label="ETFs" compact />
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              )}
+
             </motion.div>
           </AnimatePresence>
         </div>
+
+        <ImportModal open={showImport} onClose={() => setShowImport(false)} />
 
         {/* Mobile logout */}
         <div className="lg:hidden pt-2">

@@ -9,6 +9,7 @@ interface HoldingsContextType {
   mutualFundHoldings: Holding[];
   etfHoldings: Holding[];
   isLoading: boolean;
+  intradayReady: boolean;
   needsKiteReconnect: boolean;
   refresh: () => void;
   addHolding: (holding: Holding, category: 'equity' | 'mf' | 'etf') => void;
@@ -62,6 +63,8 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
     } catch { return true; }
   });
   const [needsKiteReconnect, setNeedsKiteReconnect] = useState(false);
+  // True once the first live API response with real dayAbs values has been received
+  const [intradayReady, setIntradayReady] = useState(false);
 
   const fetchHoldings = useCallback(async () => {
     // Only show the full loading skeleton when we have nothing cached
@@ -113,6 +116,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
         const data = await equityRes.json();
         zerodhaEquity = data.holdings ?? [];
       }
+      setIntradayReady(true);
 
       let customHoldings: Holding[] = [];
       if (customRes.ok) {
@@ -178,7 +182,8 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
         if (prev.length === 0) return prev;
         enrichWithLivePrices(prev).then((enriched) => {
           setEquityHoldings(enriched);
-          try { localStorage.setItem('sova-equity-holdings', JSON.stringify(enriched)); } catch {}
+          // Strip intraday before caching — stale daily% from one session is wrong the next day
+          try { localStorage.setItem('sova-equity-holdings', JSON.stringify(stripIntraday(enriched))); } catch {}
         });
         return prev;
       });
@@ -329,7 +334,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
   return (
     <HoldingsContext.Provider value={{
       equityHoldings, mutualFundHoldings, etfHoldings,
-      isLoading, needsKiteReconnect,
+      isLoading, intradayReady, needsKiteReconnect,
       refresh: fetchHoldings,
       addHolding, updateHolding, removeHolding, updateHoldingsFromActivity,
     }}>

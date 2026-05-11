@@ -196,7 +196,7 @@ function RiskGauge({ holdings }: { holdings: { value: number; daily: number; sec
 }
 
 export default function DashboardPage() {
-  const { equityHoldings, mutualFundHoldings, etfHoldings, isLoading: holdingsLoading } = useHoldings();
+  const { equityHoldings, mutualFundHoldings, etfHoldings, isLoading: holdingsLoading, intradayReady } = useHoldings();
   const [selectedTaxCandidate, setSelectedTaxCandidate] = useState<TaxCandidate | null>(null);
   const [metrics, setMetrics] = useState<PortfolioMetrics | null>(null);
   const [monthlyPL, setMonthlyPL] = useState<{ label: string; value: number }[]>(() =>
@@ -303,7 +303,7 @@ export default function DashboardPage() {
           format="inr"
           accent={dayChangeAbs >= 0 ? 'positive' : 'negative'}
           icon="timeline"
-          loading={holdingsLoading}
+          loading={holdingsLoading || !intradayReady}
           sub={`${dayChangePct >= 0 ? '+' : ''}${dayChangePct.toFixed(2)}%`}
         />
         <KPICard

@@ -182,7 +182,7 @@ function RebalanceModal({ onClose }: { onClose: () => void }) {
 export default function HomePage() {
   const [showRebalance, setShowRebalance] = useState(false);
   const { firstName } = useUser();
-  const { equityHoldings, mutualFundHoldings, etfHoldings, isLoading, needsKiteReconnect } = useHoldings();
+  const { equityHoldings, mutualFundHoldings, etfHoldings, isLoading, intradayReady, needsKiteReconnect } = useHoldings();
 
   // All KPI values derived directly from holdings context.
   // When Zerodha is connected, holdings are populated from Zerodha live data.
@@ -323,7 +323,7 @@ export default function HomePage() {
           accent={isPositiveDay ? 'positive' : 'negative'}
           delta={dayChangePct}
           icon="trending_up"
-          loading={isLoading}
+          loading={isLoading || !intradayReady}
         />
         <KPICard label="All-Time Gain" value={allTimeGain} format="inr" icon="insights" accent={allTimeGain >= 0 ? 'positive' : 'negative'} loading={isLoading} />
         <KPICard label="Equity Value"  value={equityValue} format="inr" accent="gold" icon="savings" loading={isLoading} />

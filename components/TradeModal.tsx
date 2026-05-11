@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { useSidebar } from './SidebarContext';
 import { useHoldings } from './HoldingsContext';
+import { ImportModal } from './ImportModal';
 import type { ActivityItem } from '@/lib/data';
 
 interface SearchQuote {
@@ -53,6 +54,7 @@ interface TradeModalProps {
 
 function ModalContent({ onClose, initialValues }: { onClose: () => void; initialValues?: TradeInitValues | null }) {
   const { collapsed } = useSidebar();
+  const [showImport, setShowImport] = useState(false);
   const { updateHoldingsFromActivity } = useHoldings();
   const sidebarLeft = collapsed ? 0 : 256;
   const [assetType, setAssetType] = useState<string>('Equity');
@@ -284,13 +286,26 @@ function ModalContent({ onClose, initialValues }: { onClose: () => void; initial
                 Record a capital movement across any sleeve
               </p>
             </div>
-            <button
-              onClick={onClose}
-              className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[#2f3445]/60 text-[#8c909f] hover:text-[#dde2f8] transition-colors"
-            >
-              <span className="material-symbols-outlined text-xl">close</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowImport(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest text-[#8c909f] hover:text-[#adc6ff] transition-colors"
+                style={{ background: '#1a2035', border: '1px solid #2f3445' }}
+                title="Import from CSV or Excel"
+              >
+                <span className="material-symbols-outlined text-sm">upload_file</span>
+                Import
+              </button>
+              <button
+                onClick={onClose}
+                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[#2f3445]/60 text-[#8c909f] hover:text-[#dde2f8] transition-colors"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
           </div>
+
+          <ImportModal open={showImport} onClose={() => setShowImport(false)} onImported={() => onClose()} />
 
           {submitted ? (
             <div className="flex flex-col items-center justify-center py-24 gap-5">

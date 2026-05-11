@@ -13,6 +13,8 @@ import { PerformanceChart } from '@/components/charts/PerformanceChart';
 import { useHoldings } from '@/components/HoldingsContext';
 import { Holding, equityHoldings as defaultEquityHoldings } from '@/lib/data';
 import { formatINR } from '@/lib/utils';
+import { ExportPortfolio } from '@/components/ExportPortfolio';
+import { ImportModal } from '@/components/ImportModal';
 
 type ChartType = 'pie' | 'bar' | 'line';
 
@@ -35,9 +37,10 @@ const activeShape = (props: any) => {
 };
 
 export default function EquityPage() {
-  const { equityHoldings, addHolding, removeHolding, updateHolding, isLoading } = useHoldings();
+  const { equityHoldings, addHolding, removeHolding, updateHolding, isLoading, intradayReady } = useHoldings();
 
   const [chartType, setChartType] = useState<ChartType>('pie');
+  const [showImport, setShowImport] = useState(false);
   const [activeIdx, setActiveIdx] = useState<number | undefined>(0);
   const [showAddForm, setShowAddForm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -82,7 +85,7 @@ export default function EquityPage() {
             accent={dayChange >= 0 ? 'positive' : 'negative'}
             delta={dayPct}
             icon="analytics"
-            loading={isLoading}
+            loading={isLoading || !intradayReady}
           />
           <KPICard
             label="Unrealised Gain"
@@ -261,13 +264,24 @@ export default function EquityPage() {
             title="Direct Equity Holdings"
             subtitle="Single-stock conviction positions across sectors"
             right={
-              <button
-                onClick={() => setShowAddForm(true)}
-                className="px-4 h-10 rounded-lg text-[10px] font-black uppercase tracking-widest bg-surface-container-highest/50 text-on-surface hover:bg-surface-container-highest transition-colors flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined text-base">add</span>
-                Add Equity
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowImport(true)}
+                  className="px-3 h-10 rounded-lg text-[10px] font-black uppercase tracking-widest bg-surface-container-highest/50 text-on-surface hover:bg-surface-container-highest transition-colors flex items-center gap-2"
+                  title="Import from CSV or Excel"
+                >
+                  <span className="material-symbols-outlined text-base">upload_file</span>
+                  Import
+                </button>
+                <ExportPortfolio holdings={equityHoldings} totalValue={total} compact />
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="px-4 h-10 rounded-lg text-[10px] font-black uppercase tracking-widest bg-surface-container-highest/50 text-on-surface hover:bg-surface-container-highest transition-colors flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-base">add</span>
+                  Add
+                </button>
+              </div>
             }
             className="mb-6"
           />
@@ -278,6 +292,8 @@ export default function EquityPage() {
             onEdit={(h) => setEditHolding(h)}
           />
         </Card>
+
+      <ImportModal open={showImport} onClose={() => setShowImport(false)} />
 
       {/* Modals */}
       <AnimatePresence>
