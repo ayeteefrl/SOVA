@@ -23,50 +23,29 @@ export async function GET(req: NextRequest) {
   try {
     const raw = await kc.getHoldings();
 
-    // Fetch live quotes for accurate intraday day-change data
-    // Zerodha holdings endpoint uses the purchase-to-current day_change_percentage which can differ
-    let quoteMap: Record<string, { change_percent: number; last_price: number; prev_close: number }> = {};
-    try {
-      const symbols = raw.map((h: any) => `NSE:${h.tradingsymbol}`);
-      if (symbols.length > 0) {
-        const quotes = await kc.getQuote(symbols);
-        for (const [key, q] of Object.entries(quotes as Record<string, any>)) {
-          const prevClose = q.ohlc?.close ?? 0;
-          const changePercent = prevClose > 0
-            ? ((q.last_price - prevClose) / prevClose) * 100
-            : 0;
-          quoteMap[key] = { change_percent: changePercent, last_price: q.last_price, prev_close: prevClose };
-        }
-      }
-    } catch {
-      // Quote fetch failed — fall back to holdings day_change fields
-    }
-
+    // Use Zerodha's own computed fields directly — no quote override.
+    // getHoldings() already returns last_price, day_change_percentage, and day_change
+    // which match exactly what the Kite app displays. Any recomputation introduces drift.
     const holdings: Holding[] = raw.map((h: any, i: number) => {
-      const quoteKey = `NSE:${h.tradingsymbol}`;
-      const quote = quoteMap[quoteKey];
-      // Prefer live quote LTP (more real-time); fall back to holdings last_price
-      const ltp = quote?.last_price ?? h.last_price;
-      const value = ltp * h.quantity;
+      const ltp   = h.last_price ?? 0;
+      const qty   = h.quantity ?? 0;
+      const value = ltp * qty;
       const total = h.average_price > 0
         ? ((ltp - h.average_price) / h.average_price) * 100
         : 0;
 
-      // ── Day P&L: use close_price from holdings (prev day's settlement close).
-      // Do NOT use day_change_percentage — that field can reference avg buy price,
-      // not the previous market close, giving wrong signs and magnitudes.
-      // Quote's ohlc.close overrides if the live quote was fetched successfully.
-      const prevClose: number = quote?.prev_close || h.close_price || 0;
-      const daily = prevClose > 0 ? ((ltp - prevClose) / prevClose) * 100 : 0;
-      const dayAbs = prevClose > 0 ? (ltp - prevClose) * h.quantity : 0;
+      // day_change_percentage: Zerodha's intraday % from previous close (matches Kite)
+      // day_change: absolute per-share change from previous close
+      const daily  = h.day_change_percentage ?? 0;
+      const dayAbs = (h.day_change ?? 0) * qty;
 
-      const sector = h.sector ?? sectorFromSymbol(h.tradingsymbol) ?? 'Other';
+      const sector = sectorFromSymbol(h.tradingsymbol) ?? 'Other';
       return {
         id: `${h.tradingsymbol}-${i}`,
         name: h.tradingsymbol,
         ticker: h.tradingsymbol,
-        units: h.quantity,
-        avgCost: h.average_price,
+        units: qty,
+        avgCost: h.average_price ?? 0,
         ltp,
         value,
         daily,
