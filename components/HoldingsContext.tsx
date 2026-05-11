@@ -131,7 +131,8 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
 
       const equity: Holding[] = [...zerodhaEquity, ...enrichedCustom];
       setEquityHoldings(equity);
-      try { localStorage.setItem('sova-equity-holdings', JSON.stringify(equity)); } catch {}
+      // Strip intraday fields before caching — daily % from one session is wrong the next day
+      try { localStorage.setItem('sova-equity-holdings', JSON.stringify(stripIntraday(equity))); } catch {}
 
       if (mfRes.ok) {
         const data = await mfRes.json();
@@ -141,8 +142,8 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
         setMutualFundHoldings(funds);
         setETFHoldings(etfs);
         try {
-          localStorage.setItem('sova-mf-holdings', JSON.stringify(funds));
-          localStorage.setItem('sova-etf-holdings', JSON.stringify(etfs));
+          localStorage.setItem('sova-mf-holdings', JSON.stringify(stripIntraday(funds)));
+          localStorage.setItem('sova-etf-holdings', JSON.stringify(stripIntraday(etfs)));
         } catch {}
       }
     } catch {
@@ -372,4 +373,10 @@ function isEtfSymbol(symbol: string): boolean {
 
 function normalizeTicker(t: string): string {
   return t.toUpperCase().replace(/\.(NS|BO|BSE|NSE)$/i, '');
+}
+
+// Remove intraday fields before persisting to localStorage.
+// Intraday % from one session is meaningless the next day and shows wrong values.
+function stripIntraday(holdings: Holding[]): Holding[] {
+  return holdings.map(({ daily: _d, dayAbs: _da, ...rest }) => ({ ...rest, daily: 0 }));
 }
