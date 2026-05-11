@@ -100,81 +100,95 @@ export function HoldingsTable({
 
       {/* ── Desktop Table (md+) ── */}
       <div className="hidden md:block overflow-x-auto -mx-4 px-4">
-        <div className="min-w-[980px]">
-          <div className="grid grid-cols-[2fr_0.6fr_0.75fr_0.75fr_0.8fr_0.8fr_0.7fr_0.7fr_0.55fr_64px] gap-3 px-4 py-3 border-b border-outline-variant/10">
+        <div className="min-w-[1060px]">
+          <div className="grid grid-cols-[2fr_0.6fr_0.75fr_0.75fr_0.8fr_0.8fr_0.75fr_0.65fr_0.7fr_0.55fr_64px] gap-3 px-4 py-3 border-b border-outline-variant/10">
             <Header k="name" label="Instrument" />
             <div className="text-right"><Header k="value" label="Units" right /></div>
             <div className="text-right"><Header k="value" label="Avg Cost" right /></div>
             <div className="text-right"><Header k="ltp" label="Curr. Price" right /></div>
             <div className="text-right"><Header k="invested" label="Invested" right /></div>
             <div className="text-right"><Header k="value" label="Value" right /></div>
-            <div className="text-right"><Header k="daily" label="1D" right /></div>
+            <div className="text-right"><Header k="daily" label="Daily ₹" right /></div>
+            <div className="text-right"><Header k="daily" label="Daily %" right /></div>
             <div className="text-right"><Header k="total" label="Total" right /></div>
             <div className="text-right"><Header k="weight" label="Wt." right /></div>
             <div />
           </div>
           <div className="divide-y divide-outline-variant/5">
-            {sorted.map((h, i) => (
-              <motion.div
-                key={h.id}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: i * 0.03 }}
-                className="grid grid-cols-[2fr_0.6fr_0.75fr_0.75fr_0.8fr_0.8fr_0.7fr_0.7fr_0.55fr_64px] gap-3 px-4 py-4 items-center hover:bg-surface-container-highest/20 rounded-lg transition-colors group"
-              >
-                <div>
-                  <p className="text-xs font-bold text-on-surface">{h.name}</p>
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-outline mt-0.5">
-                    {h.ticker ?? (showSector ? h.sector : '')}
+            {sorted.map((h, i) => {
+              const dayAbs = h.dayAbs ?? 0;
+              const hasDayData = h.daily !== 0 || dayAbs !== 0;
+              return (
+                <motion.div
+                  key={h.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: i * 0.03 }}
+                  className="grid grid-cols-[2fr_0.6fr_0.75fr_0.75fr_0.8fr_0.8fr_0.75fr_0.65fr_0.7fr_0.55fr_64px] gap-3 px-4 py-4 items-center hover:bg-surface-container-highest/20 rounded-lg transition-colors group"
+                >
+                  <div>
+                    <p className="text-xs font-bold text-on-surface">{h.name}</p>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-outline mt-0.5">
+                      {h.ticker ?? (showSector ? h.sector : '')}
+                    </p>
+                  </div>
+                  <p className="text-xs text-right font-semibold text-on-surface">{h.units.toLocaleString('en-IN')}</p>
+                  <p className="text-xs text-right text-on-surface-variant">
+                    {formatINR(h.avgCost, { decimals: 1 })}
                   </p>
-                </div>
-                <p className="text-xs text-right font-semibold text-on-surface">{h.units.toLocaleString('en-IN')}</p>
-                <p className="text-xs text-right text-on-surface-variant">
-                  {formatINR(h.avgCost, { decimals: 1 })}
-                </p>
-                <p className={cn(
-                  'text-xs text-right font-semibold',
-                  h.ltp > h.avgCost ? 'text-secondary' : h.ltp < h.avgCost ? 'text-tertiary' : 'text-on-surface-variant',
-                )}>
-                  {formatINR(h.ltp, { decimals: 1 })}
-                </p>
-                <p className="text-xs text-right text-on-surface-variant">
-                  {formatINR(h.units * h.avgCost, { compact: true })}
-                </p>
-                <p className="text-xs text-right font-black text-on-surface">
-                  {formatINR(h.value, { compact: true })}
-                </p>
-                <div className="text-right flex justify-end">
-                  <DeltaChip value={h.daily} />
-                </div>
-                <div className="text-right flex justify-end">
-                  <DeltaChip value={h.total} />
-                </div>
-                <p className="text-xs text-right font-black text-primary-fixed-dim">
-                  {h.weight.toFixed(1)}%
-                </p>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                  {onEdit && (
-                    <button
-                      onClick={() => onEdit(h)}
-                      className="w-7 h-7 flex items-center justify-center rounded-md text-outline hover:text-primary-fixed-dim transition-colors"
-                      title="Edit"
-                    >
-                      <span className="material-symbols-outlined text-sm">edit</span>
-                    </button>
-                  )}
-                  {onDelete && (
-                    <button
-                      onClick={() => onDelete(h.id)}
-                      className="w-7 h-7 flex items-center justify-center rounded-md text-outline hover:text-tertiary transition-colors"
-                      title="Delete"
-                    >
-                      <span className="material-symbols-outlined text-sm">close</span>
-                    </button>
-                  )}
-                </div>
-              </motion.div>
-            ))}
+                  <p className={cn(
+                    'text-xs text-right font-semibold',
+                    h.ltp > h.avgCost ? 'text-secondary' : h.ltp < h.avgCost ? 'text-tertiary' : 'text-on-surface-variant',
+                  )}>
+                    {formatINR(h.ltp, { decimals: 1 })}
+                  </p>
+                  <p className="text-xs text-right text-on-surface-variant">
+                    {formatINR(h.units * h.avgCost, { compact: true })}
+                  </p>
+                  <p className="text-xs text-right font-black text-on-surface">
+                    {formatINR(h.value, { compact: true })}
+                  </p>
+                  {/* Daily ₹ — absolute INR day change */}
+                  <p className={cn(
+                    'text-xs text-right font-black tabular-nums',
+                    !hasDayData ? 'text-outline' :
+                    dayAbs >= 0 ? 'text-secondary' : 'text-tertiary',
+                  )}>
+                    {!hasDayData ? '—' : `${dayAbs >= 0 ? '+' : ''}${formatINR(dayAbs, { compact: true })}`}
+                  </p>
+                  {/* Daily % — percentage chip */}
+                  <div className="text-right flex justify-end">
+                    {hasDayData ? <DeltaChip value={h.daily} /> : <span className="text-[10px] text-outline font-bold">—</span>}
+                  </div>
+                  <div className="text-right flex justify-end">
+                    <DeltaChip value={h.total} />
+                  </div>
+                  <p className="text-xs text-right font-black text-primary-fixed-dim">
+                    {h.weight.toFixed(1)}%
+                  </p>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    {onEdit && (
+                      <button
+                        onClick={() => onEdit(h)}
+                        className="w-7 h-7 flex items-center justify-center rounded-md text-outline hover:text-primary-fixed-dim transition-colors"
+                        title="Edit"
+                      >
+                        <span className="material-symbols-outlined text-sm">edit</span>
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button
+                        onClick={() => onDelete(h.id)}
+                        className="w-7 h-7 flex items-center justify-center rounded-md text-outline hover:text-tertiary transition-colors"
+                        title="Delete"
+                      >
+                        <span className="material-symbols-outlined text-sm">close</span>
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -248,6 +262,25 @@ export function HoldingsTable({
                   <p className="text-xs font-semibold text-on-surface">{h.units.toLocaleString('en-IN')}</p>
                 </div>
               </div>
+
+              {/* Daily change row */}
+              {(h.daily !== 0 || (h.dayAbs ?? 0) !== 0) && (
+                <div className="flex items-center justify-between pt-2 border-t border-outline-variant/10">
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-outline mb-0.5">Daily ₹</p>
+                    <p className={cn(
+                      'text-sm font-black tabular-nums',
+                      (h.dayAbs ?? 0) >= 0 ? 'text-secondary' : 'text-tertiary',
+                    )}>
+                      {(h.dayAbs ?? 0) >= 0 ? '+' : ''}{formatINR(h.dayAbs ?? 0, { compact: true })}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-outline mb-0.5">Daily %</p>
+                    <DeltaChip value={h.daily} />
+                  </div>
+                </div>
+              )}
 
               {/* Value row */}
               <div className="flex items-center justify-between pt-2 border-t border-outline-variant/10">

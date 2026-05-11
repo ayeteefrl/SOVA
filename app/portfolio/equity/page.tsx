@@ -45,7 +45,7 @@ export default function EquityPage() {
 
   const total = equityHoldings.reduce((a, b) => a + b.value, 0);
   const totalInvested = equityHoldings.reduce((a, b) => a + b.units * b.avgCost, 0);
-  const dayChange = equityHoldings.reduce((a, b) => a + (b.value * b.daily) / 100, 0);
+  const dayChange = equityHoldings.reduce((a, b) => a + (b.dayAbs ?? 0), 0);
   const totalGain = total - totalInvested;
   const dayPct = (dayChange / total) * 100;
   const topGainer = equityHoldings.length > 0 ? [...equityHoldings].sort((a, b) => b.daily - a.daily)[0] : null;
