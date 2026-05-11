@@ -20,14 +20,18 @@ interface HoldingsContextType {
 const HoldingsContext = createContext<HoldingsContextType | undefined>(undefined);
 
 // Fetch live LTP for a custom holding using the stock API (tries NSE suffix)
-async function fetchLivePrice(ticker: string): Promise<{ ltp: number; daily: number } | null> {
+async function fetchLivePrice(ticker: string): Promise<{ ltp: number; daily: number; change: number } | null> {
   const symbol = ticker.includes('.') ? ticker : `${ticker}.NS`;
   try {
     const res = await fetch(`/api/stock?symbol=${encodeURIComponent(symbol)}`);
     if (!res.ok) return null;
     const data = await res.json();
     if (data.stock?.price != null) {
-      return { ltp: data.stock.price, daily: data.stock.changePercent ?? 0 };
+      return {
+        ltp: data.stock.price,
+        daily: data.stock.changePercent ?? 0,
+        change: data.stock.change ?? 0, // absolute per-share change
+      };
     }
   } catch {}
   return null;
@@ -46,17 +50,48 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === 'undefined') return [];
     try { const v = localStorage.getItem('sova-etf-holdings'); return v ? JSON.parse(v) : []; } catch { return []; }
   });
-  const [isLoading, setIsLoading] = useState(true);
+  // Only show full loading skeleton when we have nothing cached to show
+  const [isLoading, setIsLoading] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      const e = localStorage.getItem('sova-equity-holdings');
+      const m = localStorage.getItem('sova-mf-holdings');
+      const eLen = e ? (JSON.parse(e) as unknown[]).length : 0;
+      const mLen = m ? (JSON.parse(m) as unknown[]).length : 0;
+      return eLen === 0 && mLen === 0;
+    } catch { return true; }
+  });
   const [needsKiteReconnect, setNeedsKiteReconnect] = useState(false);
 
   const fetchHoldings = useCallback(async () => {
-    setIsLoading(true);
+    // Only show the full loading skeleton when we have nothing cached
+    const hasCached = (() => {
+      try {
+        const e = localStorage.getItem('sova-equity-holdings');
+        const m = localStorage.getItem('sova-mf-holdings');
+        return !!(e && (JSON.parse(e) as unknown[]).length) || !!(m && (JSON.parse(m) as unknown[]).length);
+      } catch { return false; }
+    })();
+    if (!hasCached) setIsLoading(true);
+
     try {
-      const [equityRes, mfRes, customRes] = await Promise.all([
+      let [equityRes, mfRes, customRes] = await Promise.all([
         fetch('/api/kite/holdings'),
         fetch('/api/kite/mf'),
         fetch('/api/holdings/custom'),
       ]);
+
+      if (equityRes.status === 401) {
+        // Try silent auto-refresh before giving up (handles daily Zerodha token expiry)
+        const refreshRes = await fetch('/api/auth/kite/refresh', { method: 'POST' });
+        if (refreshRes.ok) {
+          // Retry with fresh token
+          [equityRes, mfRes] = await Promise.all([
+            fetch('/api/kite/holdings'),
+            fetch('/api/kite/mf'),
+          ]);
+        }
+      }
 
       if (equityRes.status === 401) {
         setNeedsKiteReconnect(true);
@@ -321,6 +356,7 @@ async function enrichWithLivePrices(holdings: Holding[]): Promise<Holding[]> {
         ltp: live.ltp,
         value: h.units * live.ltp,
         daily: live.daily,
+        dayAbs: live.change * h.units, // absolute INR day change
         total: h.avgCost > 0 ? ((live.ltp - h.avgCost) / h.avgCost) * 100 : 0,
       };
     })

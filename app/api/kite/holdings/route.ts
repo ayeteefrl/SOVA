@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch live quotes for accurate intraday day-change data
     // Zerodha holdings endpoint uses the purchase-to-current day_change_percentage which can differ
-    let quoteMap: Record<string, { change_percent: number; last_price: number }> = {};
+    let quoteMap: Record<string, { change_percent: number; last_price: number; prev_close: number }> = {};
     try {
       const symbols = raw.map((h: any) => `NSE:${h.tradingsymbol}`);
       if (symbols.length > 0) {
@@ -35,11 +35,11 @@ export async function GET(req: NextRequest) {
           const changePercent = prevClose > 0
             ? ((q.last_price - prevClose) / prevClose) * 100
             : 0;
-          quoteMap[key] = { change_percent: changePercent, last_price: q.last_price };
+          quoteMap[key] = { change_percent: changePercent, last_price: q.last_price, prev_close: prevClose };
         }
       }
     } catch {
-      // Quote fetch failed — fall back to holdings day_change_percentage
+      // Quote fetch failed — fall back to holdings day_change fields
     }
 
     const holdings: Holding[] = raw.map((h: any, i: number) => {
@@ -54,6 +54,11 @@ export async function GET(req: NextRequest) {
       const daily = quote !== undefined
         ? quote.change_percent
         : (h.day_change_percentage ?? 0);
+      // Absolute INR day change: use exact (ltp - prevClose) * qty from quote,
+      // or fall back to Zerodha's day_change (per-share absolute) * qty
+      const dayAbs = quote?.prev_close
+        ? (ltp - quote.prev_close) * h.quantity
+        : (h.day_change ?? 0) * h.quantity;
       const sector = h.sector ?? sectorFromSymbol(h.tradingsymbol) ?? 'Other';
       return {
         id: `${h.tradingsymbol}-${i}`,
@@ -64,6 +69,7 @@ export async function GET(req: NextRequest) {
         ltp,
         value,
         daily,
+        dayAbs,
         total,
         weight: 0,
         sector,

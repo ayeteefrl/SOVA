@@ -16,7 +16,8 @@ export type Holding = {
   avgCost: number;
   ltp: number;
   value: number;
-  daily: number; // pct
+  daily: number; // pct change from prev close
+  dayAbs?: number; // absolute INR day change = (ltp - prevClose) * qty
   total: number; // pct
   weight: number; // pct
   sector?: string;

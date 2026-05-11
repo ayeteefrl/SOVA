@@ -264,10 +264,11 @@ export default function DashboardPage() {
     etfHoldings.reduce((a, h) => a + h.units * h.avgCost, 0);
   const totalReturn = totalCurrent - totalInvested;
   const totalReturnPct = totalInvested > 0 ? (totalReturn / totalInvested) * 100 : 0;
+  // Use dayAbs (exact INR change) if available; fall back to approximate formula
   const dayChangeAbs =
-    equityHoldings.reduce((a, h) => a + (h.value * h.daily) / 100, 0) +
-    mutualFundHoldings.reduce((a, h) => a + (h.value * h.daily) / 100, 0) +
-    etfHoldings.reduce((a, h) => a + (h.value * h.daily) / 100, 0);
+    equityHoldings.reduce((a, h) => a + (h.dayAbs ?? (h.value * h.daily) / 100), 0) +
+    mutualFundHoldings.reduce((a, h) => a + (h.dayAbs ?? (h.value * h.daily) / 100), 0) +
+    etfHoldings.reduce((a, h) => a + (h.dayAbs ?? (h.value * h.daily) / 100), 0);
   const dayChangePct = totalCurrent > 0 ? (dayChangeAbs / totalCurrent) * 100 : 0;
 
   // Tax harvesting candidates from real holdings

@@ -195,7 +195,8 @@ export default function HomePage() {
     equityHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
     mutualFundHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
     etfHoldings.reduce((a, h) => a + h.units * h.avgCost, 0);
-  const dayChange      = equityHoldings.reduce((a, h) => a + (h.value * h.daily) / 100, 0);
+  // Use dayAbs (exact INR change) if available; fall back to approximate formula
+  const dayChange      = equityHoldings.reduce((a, h) => a + (h.dayAbs ?? (h.value * h.daily) / 100), 0);
   const dayChangePct   = netWorth > 0 ? (dayChange / netWorth) * 100 : 0;
   const allTimeGain    = netWorth - totalInvested;
   const isPositiveDay  = dayChange >= 0;

@@ -48,7 +48,8 @@ export async function saveSession(userId: string, accessToken: string, encToken:
     });
 }
 
-// Check if the session is older than 30 days
+// Check if the session needs a token refresh.
+// Zerodha access tokens expire at midnight IST — check every ~20 hours to stay ahead.
 export async function shouldRefresh(userId: string): Promise<boolean> {
   try {
     const { data: sessions, error } = await supabase
@@ -65,9 +66,9 @@ export async function shouldRefresh(userId: string): Promise<boolean> {
 
     const lastRefreshed = new Date(session.last_refreshed_at);
     const now = new Date();
-    const daysSinceRefresh = (now.getTime() - lastRefreshed.getTime()) / (1000 * 60 * 60 * 24);
+    const hoursSinceRefresh = (now.getTime() - lastRefreshed.getTime()) / (1000 * 60 * 60);
 
-    return daysSinceRefresh > 30;
+    return hoursSinceRefresh > 20;
   } catch {
     return false;
   }
