@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
         daily: 0, // MF NAV doesn't have intraday change
         total,
         weight: 0,
+        source: 'zerodha' as const,
       };
     });
 

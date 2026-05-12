@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
         total,
         weight: 0,
         sector,
+        source: 'zerodha' as const,
       };
     });
 

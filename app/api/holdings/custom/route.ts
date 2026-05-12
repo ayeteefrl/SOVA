@@ -79,6 +79,7 @@ export async function GET() {
       total: 0,
       weight: 0,
       sector: entry.sector,
+      source: 'custom',
     });
   }
 

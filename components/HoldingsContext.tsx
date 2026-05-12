@@ -175,15 +175,18 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
     fetchHoldings();
   }, [fetchHoldings]);
 
-  // Refresh live prices every 30 seconds for custom holdings
+  // Refresh live prices every 30 seconds — only for custom holdings (Zerodha data is authoritative)
   useEffect(() => {
     const id = setInterval(async () => {
       setEquityHoldings((prev) => {
         if (prev.length === 0) return prev;
-        enrichWithLivePrices(prev).then((enriched) => {
-          setEquityHoldings(enriched);
-          // Strip intraday before caching — stale daily% from one session is wrong the next day
-          try { localStorage.setItem('sova-equity-holdings', JSON.stringify(stripIntraday(enriched))); } catch {}
+        const custom = prev.filter((h) => h.source !== 'zerodha');
+        const zerodha = prev.filter((h) => h.source === 'zerodha');
+        if (custom.length === 0) return prev;
+        enrichWithLivePrices(custom).then((enrichedCustom) => {
+          const merged = [...zerodha, ...enrichedCustom];
+          setEquityHoldings(merged);
+          try { localStorage.setItem('sova-equity-holdings', JSON.stringify(stripIntraday(merged))); } catch {}
         });
         return prev;
       });
@@ -321,6 +324,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
           id: `${ticker}-${Date.now()}`, name: activity.instrumentName ?? ticker, ticker,
           units, avgCost: price, ltp: price, value: units * price,
           daily: 0, total: 0, weight: 0, sector: activity.tradeSector ?? 'Other',
+          source: 'custom' as const,
         }];
       }
       return holdings;
