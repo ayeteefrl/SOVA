@@ -25,9 +25,9 @@ const activeShape = (props: any) => {
   const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
   return (
     <g>
-      <Sector cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius + 8}
+      <Sector cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius + 6}
         startAngle={startAngle} endAngle={endAngle} fill={fill} />
-      <Sector cx={cx} cy={cy} innerRadius={outerRadius + 10} outerRadius={outerRadius + 13}
+      <Sector cx={cx} cy={cy} innerRadius={outerRadius + 8} outerRadius={outerRadius + 11}
         startAngle={startAngle} endAngle={endAngle} fill={fill} opacity={0.35} />
     </g>
   );
@@ -142,6 +142,7 @@ export function AllocationDonut() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.3 }}
             className="flex-1 flex flex-col md:flex-row items-center gap-8"
+            onMouseLeave={() => setActive(0)}
           >
             {/* Donut */}
             <div className="relative w-52 h-52 shrink-0">
@@ -150,7 +151,7 @@ export function AllocationDonut() {
                   <Pie
                     data={pieData}
                     cx="50%" cy="50%"
-                    innerRadius={52} outerRadius={96}
+                    innerRadius={52} outerRadius={88}
                     paddingAngle={2}
                     dataKey="value"
                     stroke="none"
@@ -276,6 +277,7 @@ export function AllocationDonut() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.3 }}
             className="flex-1 flex flex-col md:flex-row gap-8"
+            onMouseLeave={() => setActive(0)}
           >
             {sectorData.length === 0 ? (
               <div className="flex-1 flex items-center justify-center">
@@ -290,7 +292,7 @@ export function AllocationDonut() {
                       <Pie
                         data={sectorData}
                         cx="50%" cy="50%"
-                        innerRadius={52} outerRadius={96}
+                        innerRadius={52} outerRadius={88}
                         paddingAngle={2}
                         dataKey="value"
                         stroke="none"

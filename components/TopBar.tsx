@@ -33,7 +33,7 @@ export function TopBar() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const { toggleMobile } = useSidebar();
-  const { refresh, isLoading } = useHoldings();
+  const { refresh, isLoading, isRefreshing } = useHoldings();
 
   function handleRefresh() {
     refresh();
@@ -129,12 +129,12 @@ export function TopBar() {
           {/* Refresh */}
           <button
             onClick={handleRefresh}
-            disabled={isLoading}
+            disabled={isRefreshing}
             className="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-container-low text-outline hover:text-primary transition-colors disabled:opacity-40"
             aria-label="Refresh data"
           >
             <span
-              className={`material-symbols-outlined text-[20px] transition-transform ${isLoading ? 'animate-spin' : ''}`}
+              className={`material-symbols-outlined text-[20px] transition-transform ${isRefreshing ? 'animate-spin' : ''}`}
             >
               refresh
             </span>

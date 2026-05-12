@@ -9,6 +9,7 @@ interface HoldingsContextType {
   mutualFundHoldings: Holding[];
   etfHoldings: Holding[];
   isLoading: boolean;
+  isRefreshing: boolean;
   intradayReady: boolean;
   needsKiteReconnect: boolean;
   refresh: () => void;
@@ -63,6 +64,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
     } catch { return true; }
   });
   const [needsKiteReconnect, setNeedsKiteReconnect] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   // True once the first live API response with real dayAbs values has been received
   const [intradayReady, setIntradayReady] = useState(false);
 
@@ -76,6 +78,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       } catch { return false; }
     })();
     if (!hasCached) setIsLoading(true);
+    setIsRefreshing(true);
 
     try {
       let [equityRes, mfRes, customRes] = await Promise.all([
@@ -116,7 +119,6 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
         const data = await equityRes.json();
         zerodhaEquity = data.holdings ?? [];
       }
-      setIntradayReady(true);
 
       let customHoldings: Holding[] = [];
       if (customRes.ok) {
@@ -135,6 +137,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
 
       const equity: Holding[] = [...zerodhaEquity, ...enrichedCustom];
       setEquityHoldings(equity);
+      setIntradayReady(true); // batched with setEquityHoldings — single render with correct dayAbs
       // Strip intraday fields before caching — daily % from one session is wrong the next day
       try { localStorage.setItem('sova-equity-holdings', JSON.stringify(stripIntraday(equity))); } catch {}
 
@@ -154,6 +157,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       loadFromCache([]);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
 
@@ -338,7 +342,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
   return (
     <HoldingsContext.Provider value={{
       equityHoldings, mutualFundHoldings, etfHoldings,
-      isLoading, intradayReady, needsKiteReconnect,
+      isLoading, isRefreshing, intradayReady, needsKiteReconnect,
       refresh: fetchHoldings,
       addHolding, updateHolding, removeHolding, updateHoldingsFromActivity,
     }}>
