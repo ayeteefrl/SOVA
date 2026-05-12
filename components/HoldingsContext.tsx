@@ -12,6 +12,7 @@ interface HoldingsContextType {
   isRefreshing: boolean;
   intradayReady: boolean;
   needsKiteReconnect: boolean;
+  needsAngelReconnect: boolean;
   refresh: () => void;
   addHolding: (holding: Holding, category: 'equity' | 'mf' | 'etf') => void;
   updateHolding: (id: string, updates: Partial<Holding>, category: 'equity' | 'mf' | 'etf') => void;
@@ -64,6 +65,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
     } catch { return true; }
   });
   const [needsKiteReconnect, setNeedsKiteReconnect] = useState(false);
+  const [needsAngelReconnect, setNeedsAngelReconnect] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   // True once the first live API response with real dayAbs values has been received
   const [intradayReady, setIntradayReady] = useState(false);
@@ -81,17 +83,17 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
     setIsRefreshing(true);
 
     try {
-      let [equityRes, mfRes, customRes] = await Promise.all([
+      let [equityRes, mfRes, customRes, angelRes] = await Promise.all([
         fetch('/api/kite/holdings'),
         fetch('/api/kite/mf'),
         fetch('/api/holdings/custom'),
+        fetch('/api/angel/holdings'),
       ]);
 
       if (equityRes.status === 401) {
         // Try silent auto-refresh before giving up (handles daily Zerodha token expiry)
         const refreshRes = await fetch('/api/auth/kite/refresh', { method: 'POST' });
         if (refreshRes.ok) {
-          // Retry with fresh token
           [equityRes, mfRes] = await Promise.all([
             fetch('/api/kite/holdings'),
             fetch('/api/kite/mf'),
@@ -99,25 +101,41 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      if (equityRes.status === 401) {
-        setNeedsKiteReconnect(true);
+      if (angelRes.status === 401) {
+        // Try silent refresh for Angel One token
+        const refreshRes = await fetch('/api/auth/angel/refresh', { method: 'POST' });
+        if (refreshRes.ok) {
+          angelRes = await fetch('/api/angel/holdings');
+        }
+      }
+
+      const kiteDisconnected = equityRes.status === 401;
+      const angelDisconnected = angelRes.status === 401;
+
+      setNeedsKiteReconnect(kiteDisconnected);
+      setNeedsAngelReconnect(angelDisconnected);
+
+      if (kiteDisconnected && angelDisconnected) {
         let customHoldings: Holding[] = [];
         if (customRes.ok) {
           const cdata = await customRes.json();
           customHoldings = cdata.holdings ?? [];
         }
-        // Enrich custom holdings with live prices even when Zerodha is disconnected
         const enriched = await enrichWithLivePrices(customHoldings);
         loadFromCache(enriched);
         return;
       }
 
-      setNeedsKiteReconnect(false);
-
       let zerodhaEquity: Holding[] = [];
       if (equityRes.ok) {
         const data = await equityRes.json();
         zerodhaEquity = data.holdings ?? [];
+      }
+
+      let angelEquity: Holding[] = [];
+      if (angelRes.ok) {
+        const data = await angelRes.json();
+        angelEquity = data.holdings ?? [];
       }
 
       let customHoldings: Holding[] = [];
@@ -126,16 +144,25 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
         customHoldings = cdata.holdings ?? [];
       }
 
-      // Merge: custom holdings not already tracked by Zerodha
-      const zerodhaTickerSet = new Set(zerodhaEquity.map((h) => normalizeTicker(h.ticker ?? '')));
-      const extraCustom = customHoldings.filter(
-        (h) => !zerodhaTickerSet.has(normalizeTicker(h.ticker ?? ''))
-      );
+      // Build a set of tickers already covered by live broker data
+      const brokerTickerSet = new Set([
+        ...zerodhaEquity.map((h) => normalizeTicker(h.ticker ?? '')),
+        ...angelEquity.map((h) => normalizeTicker(h.ticker ?? '')),
+      ]);
 
-      // Fetch live prices for custom holdings (Zerodha already provides live LTP)
+      // Only enrich custom holdings not already present in a broker feed
+      const extraCustom = customHoldings.filter(
+        (h) => !brokerTickerSet.has(normalizeTicker(h.ticker ?? ''))
+      );
       const enrichedCustom = await enrichWithLivePrices(extraCustom);
 
-      const equity: Holding[] = [...zerodhaEquity, ...enrichedCustom];
+      // Merge: Zerodha + Angel One (deduped) + custom remainder
+      const angelTickerSet = new Set(angelEquity.map((h) => normalizeTicker(h.ticker ?? '')));
+      const deduplicatedZerodha = zerodhaEquity.filter(
+        (h) => !angelTickerSet.has(normalizeTicker(h.ticker ?? ''))
+      );
+
+      const equity: Holding[] = [...deduplicatedZerodha, ...angelEquity, ...enrichedCustom];
       setEquityHoldings(equity);
       setIntradayReady(true); // batched with setEquityHoldings — single render with correct dayAbs
       // Strip intraday fields before caching — daily % from one session is wrong the next day
@@ -184,11 +211,11 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
     const id = setInterval(async () => {
       setEquityHoldings((prev) => {
         if (prev.length === 0) return prev;
-        const custom = prev.filter((h) => h.source !== 'zerodha');
-        const zerodha = prev.filter((h) => h.source === 'zerodha');
+        const custom = prev.filter((h) => h.source !== 'zerodha' && h.source !== 'angel_one');
+        const broker = prev.filter((h) => h.source === 'zerodha' || h.source === 'angel_one');
         if (custom.length === 0) return prev;
         enrichWithLivePrices(custom).then((enrichedCustom) => {
-          const merged = [...zerodha, ...enrichedCustom];
+          const merged = [...broker, ...enrichedCustom];
           setEquityHoldings(merged);
           try { localStorage.setItem('sova-equity-holdings', JSON.stringify(stripIntraday(merged))); } catch {}
         });
@@ -342,7 +369,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
   return (
     <HoldingsContext.Provider value={{
       equityHoldings, mutualFundHoldings, etfHoldings,
-      isLoading, isRefreshing, intradayReady, needsKiteReconnect,
+      isLoading, isRefreshing, intradayReady, needsKiteReconnect, needsAngelReconnect,
       refresh: fetchHoldings,
       addHolding, updateHolding, removeHolding, updateHoldingsFromActivity,
     }}>

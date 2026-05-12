@@ -144,7 +144,9 @@ function ColorPickerField({
 /* ── Integrations Panel ──────────────────────────────────────────── */
 function IntegrationsPanel() {
   const [kiteStatus, setKiteStatus] = useState<'loading' | 'connected' | 'disconnected'>('loading');
-  const [connecting, setConnecting] = useState(false);
+  const [angelStatus, setAngelStatus] = useState<'loading' | 'connected' | 'disconnected'>('loading');
+  const [connectingKite, setConnectingKite] = useState(false);
+  const [connectingAngel, setConnectingAngel] = useState(false);
   const [showOthers, setShowOthers] = useState(false);
 
   useEffect(() => {
@@ -152,20 +154,33 @@ function IntegrationsPanel() {
       .then((r) => r.json())
       .then((d) => setKiteStatus(d.authenticated ? 'connected' : 'disconnected'))
       .catch(() => setKiteStatus('disconnected'));
+
+    fetch('/api/auth/angel/status')
+      .then((r) => r.json())
+      .then((d) => setAngelStatus(d.authenticated ? 'connected' : 'disconnected'))
+      .catch(() => setAngelStatus('disconnected'));
   }, []);
 
-  function handleConnect() {
-    setConnecting(true);
+  function handleConnectKite() {
+    setConnectingKite(true);
     window.location.href = '/api/auth/kite/login';
   }
 
-  const isConnected = kiteStatus === 'connected';
-  const statusColor = isConnected ? '#4edea3' : kiteStatus === 'loading' ? '#D4AF37' : '#8c909f';
-  const statusLabel = kiteStatus === 'loading' ? 'Checking…' : isConnected ? 'Connected' : 'Not Connected';
+  function handleConnectAngel() {
+    setConnectingAngel(true);
+    window.location.href = '/api/auth/angel/login';
+  }
+
+  const isKiteConnected = kiteStatus === 'connected';
+  const kiteStatusColor = isKiteConnected ? '#4edea3' : kiteStatus === 'loading' ? '#D4AF37' : '#8c909f';
+  const kiteStatusLabel = kiteStatus === 'loading' ? 'Checking…' : isKiteConnected ? 'Connected' : 'Not Connected';
+
+  const isAngelConnected = angelStatus === 'connected';
+  const angelStatusColor = isAngelConnected ? '#4edea3' : angelStatus === 'loading' ? '#D4AF37' : '#8c909f';
+  const angelStatusLabel = angelStatus === 'loading' ? 'Checking…' : isAngelConnected ? 'Connected' : 'Not Connected';
 
   const mainBrokers = [
     { name: 'Groww', category: 'Broker · Stocks & MF' },
-    { name: 'Angel One', category: 'Broker · Full-Service' },
     { name: 'Upstox', category: 'Broker · Discount' },
   ];
 
@@ -191,34 +206,69 @@ function IntegrationsPanel() {
               <p className="text-[10px] text-outline font-bold uppercase tracking-widest mt-0.5">Broker · Live Data</p>
             </div>
             <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full"
-              style={{ backgroundColor: `${statusColor}15`, color: statusColor }}>
-              {statusLabel}
+              style={{ backgroundColor: `${kiteStatusColor}15`, color: kiteStatusColor }}>
+              {kiteStatusLabel}
             </span>
           </div>
           <p className="text-[10px] text-outline leading-relaxed">
-            {isConnected
+            {isKiteConnected
               ? 'Live holdings, trades, and portfolio data streaming from your Zerodha account.'
               : 'Connect your Zerodha account for live portfolio data, holdings, and trade history.'}
           </p>
           <button
-            onClick={handleConnect}
-            disabled={connecting || kiteStatus === 'loading'}
+            onClick={handleConnectKite}
+            disabled={connectingKite || kiteStatus === 'loading'}
             className={cn(
               'w-full h-10 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
-              isConnected
+              isKiteConnected
                 ? 'bg-surface-container-highest/40 text-on-surface hover:bg-surface-container-highest/60'
                 : 'gradient-primary text-on-primary-container shadow-glow hover:scale-[1.01]',
-              (connecting || kiteStatus === 'loading') && 'opacity-50 cursor-not-allowed',
+              (connectingKite || kiteStatus === 'loading') && 'opacity-50 cursor-not-allowed',
             )}
           >
             <span className="material-symbols-outlined text-sm">
-              {connecting ? 'hourglass_empty' : isConnected ? 'sync' : 'link'}
+              {connectingKite ? 'hourglass_empty' : isKiteConnected ? 'sync' : 'link'}
             </span>
-            {connecting ? 'Redirecting…' : isConnected ? 'Reconnect Zerodha' : 'Connect Zerodha'}
+            {connectingKite ? 'Redirecting…' : isKiteConnected ? 'Reconnect Zerodha' : 'Connect Zerodha'}
           </button>
         </div>
 
-        {/* Main brokers — coming soon */}
+        {/* Angel One — live */}
+        <div className="p-5 rounded-xl bg-surface-container-highest/20 flex flex-col gap-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm font-black text-on-surface">Angel One</p>
+              <p className="text-[10px] text-outline font-bold uppercase tracking-widest mt-0.5">Broker · Full-Service</p>
+            </div>
+            <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full"
+              style={{ backgroundColor: `${angelStatusColor}15`, color: angelStatusColor }}>
+              {angelStatusLabel}
+            </span>
+          </div>
+          <p className="text-[10px] text-outline leading-relaxed">
+            {isAngelConnected
+              ? 'Live holdings and portfolio data streaming from your Angel One account.'
+              : 'Connect your Angel One account for live portfolio data and trade history.'}
+          </p>
+          <button
+            onClick={handleConnectAngel}
+            disabled={connectingAngel || angelStatus === 'loading'}
+            className={cn(
+              'w-full h-10 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
+              isAngelConnected
+                ? 'bg-surface-container-highest/40 text-on-surface hover:bg-surface-container-highest/60'
+                : 'gradient-primary text-on-primary-container shadow-glow hover:scale-[1.01]',
+              (connectingAngel || angelStatus === 'loading') && 'opacity-50 cursor-not-allowed',
+            )}
+          >
+            <span className="material-symbols-outlined text-sm">
+              {connectingAngel ? 'hourglass_empty' : isAngelConnected ? 'sync' : 'link'}
+            </span>
+            {connectingAngel ? 'Redirecting…' : isAngelConnected ? 'Reconnect Angel One' : 'Connect Angel One'}
+          </button>
+        </div>
+
+        {/* Remaining main brokers — coming soon */}
         {mainBrokers.map((b) => (
           <div key={b.name} className="p-5 rounded-xl bg-surface-container-highest/20 flex items-center justify-between opacity-60">
             <div>
