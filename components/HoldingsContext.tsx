@@ -83,65 +83,19 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
     setIsRefreshing(true);
 
     try {
-      let [equityRes, mfRes, customRes, angelRes] = await Promise.all([
-        fetch('/api/kite/holdings'),
-        fetch('/api/kite/mf'),
-        fetch('/api/holdings/custom'),
-        fetch('/api/angel/holdings'),
-      ]);
+      // Fetch each broker independently — a failure in one must not affect the others.
+      // Custom holdings and MF are always fetched regardless of broker status.
+      const { zerodhaEquity, zerodhaConnected, mfHoldings, customHoldings, angelEquity, angelConnected } =
+        await fetchAllSources();
 
-      if (equityRes.status === 401) {
-        // Try silent auto-refresh before giving up (handles daily Zerodha token expiry)
-        const refreshRes = await fetch('/api/auth/kite/refresh', { method: 'POST' });
-        if (refreshRes.ok) {
-          [equityRes, mfRes] = await Promise.all([
-            fetch('/api/kite/holdings'),
-            fetch('/api/kite/mf'),
-          ]);
-        }
-      }
+      setNeedsKiteReconnect(!zerodhaConnected);
+      setNeedsAngelReconnect(!angelConnected);
 
-      if (angelRes.status === 401) {
-        // Try silent refresh for Angel One token
-        const refreshRes = await fetch('/api/auth/angel/refresh', { method: 'POST' });
-        if (refreshRes.ok) {
-          angelRes = await fetch('/api/angel/holdings');
-        }
-      }
-
-      const kiteDisconnected = equityRes.status === 401;
-      const angelDisconnected = angelRes.status === 401;
-
-      setNeedsKiteReconnect(kiteDisconnected);
-      setNeedsAngelReconnect(angelDisconnected);
-
-      if (kiteDisconnected && angelDisconnected) {
-        let customHoldings: Holding[] = [];
-        if (customRes.ok) {
-          const cdata = await customRes.json();
-          customHoldings = cdata.holdings ?? [];
-        }
+      // If both brokers are unavailable, fall back to cached data + custom
+      if (!zerodhaConnected && !angelConnected) {
         const enriched = await enrichWithLivePrices(customHoldings);
         loadFromCache(enriched);
         return;
-      }
-
-      let zerodhaEquity: Holding[] = [];
-      if (equityRes.ok) {
-        const data = await equityRes.json();
-        zerodhaEquity = data.holdings ?? [];
-      }
-
-      let angelEquity: Holding[] = [];
-      if (angelRes.ok) {
-        const data = await angelRes.json();
-        angelEquity = data.holdings ?? [];
-      }
-
-      let customHoldings: Holding[] = [];
-      if (customRes.ok) {
-        const cdata = await customRes.json();
-        customHoldings = cdata.holdings ?? [];
       }
 
       // Build a set of tickers already covered by live broker data
@@ -156,7 +110,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       );
       const enrichedCustom = await enrichWithLivePrices(extraCustom);
 
-      // Merge: Zerodha + Angel One (deduped) + custom remainder
+      // Merge: Zerodha + Angel One (deduped by ticker) + custom remainder
       const angelTickerSet = new Set(angelEquity.map((h) => normalizeTicker(h.ticker ?? '')));
       const deduplicatedZerodha = zerodhaEquity.filter(
         (h) => !angelTickerSet.has(normalizeTicker(h.ticker ?? ''))
@@ -165,14 +119,12 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       const equity: Holding[] = [...deduplicatedZerodha, ...angelEquity, ...enrichedCustom];
       setEquityHoldings(equity);
       setIntradayReady(true); // batched with setEquityHoldings — single render with correct dayAbs
-      // Strip intraday fields before caching — daily % from one session is wrong the next day
       try { localStorage.setItem('sova-equity-holdings', JSON.stringify(stripIntraday(equity))); } catch {}
 
-      if (mfRes.ok) {
-        const data = await mfRes.json();
-        const mf: Holding[] = data.holdings ?? [];
-        const etfs = mf.filter((h) => h.sector === 'ETF' || isEtfSymbol(h.ticker ?? ''));
-        const funds = mf.filter((h) => h.sector !== 'ETF' && !isEtfSymbol(h.ticker ?? ''));
+      // MF from Zerodha (Angel One SmartAPI does not provide MF holdings)
+      if (mfHoldings.length > 0) {
+        const etfs = mfHoldings.filter((h) => h.sector === 'ETF' || isEtfSymbol(h.ticker ?? ''));
+        const funds = mfHoldings.filter((h) => h.sector !== 'ETF' && !isEtfSymbol(h.ticker ?? ''));
         setMutualFundHoldings(funds);
         setETFHoldings(etfs);
         try {
@@ -382,6 +334,76 @@ export function useHoldings() {
   const ctx = useContext(HoldingsContext);
   if (!ctx) throw new Error('useHoldings must be used within HoldingsProvider');
   return ctx;
+}
+
+// Fetch all data sources in parallel with full isolation.
+// A network or auth failure in any one broker leaves the others unaffected.
+async function fetchAllSources(): Promise<{
+  zerodhaEquity: Holding[];
+  zerodhaConnected: boolean;
+  mfHoldings: Holding[];
+  customHoldings: Holding[];
+  angelEquity: Holding[];
+  angelConnected: boolean;
+}> {
+  const fetchZerodha = async () => {
+    try {
+      let [equityRes, mfRes] = await Promise.all([
+        fetch('/api/kite/holdings'),
+        fetch('/api/kite/mf'),
+      ]);
+      if (equityRes.status === 401) {
+        const r = await fetch('/api/auth/kite/refresh', { method: 'POST' });
+        if (r.ok) {
+          [equityRes, mfRes] = await Promise.all([
+            fetch('/api/kite/holdings'),
+            fetch('/api/kite/mf'),
+          ]);
+        }
+      }
+      if (equityRes.status === 401) return { equity: [], connected: false, mf: [] };
+      const equity = equityRes.ok ? ((await equityRes.json()).holdings ?? []) : [];
+      const mf     = mfRes.ok    ? ((await mfRes.json()).holdings    ?? []) : [];
+      return { equity, connected: true, mf };
+    } catch {
+      return { equity: [], connected: false, mf: [] };
+    }
+  };
+
+  const fetchAngel = async () => {
+    try {
+      let res = await fetch('/api/angel/holdings');
+      if (res.status === 401) {
+        const r = await fetch('/api/auth/angel/refresh', { method: 'POST' });
+        if (r.ok) res = await fetch('/api/angel/holdings');
+      }
+      if (res.status === 401) return { equity: [], connected: false };
+      const equity = res.ok ? ((await res.json()).holdings ?? []) : [];
+      return { equity, connected: true };
+    } catch {
+      return { equity: [], connected: false };
+    }
+  };
+
+  const fetchCustom = async (): Promise<Holding[]> => {
+    try {
+      const res = await fetch('/api/holdings/custom');
+      return res.ok ? ((await res.json()).holdings ?? []) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const [z, a, customHoldings] = await Promise.all([fetchZerodha(), fetchAngel(), fetchCustom()]);
+
+  return {
+    zerodhaEquity: z.equity,
+    zerodhaConnected: z.connected,
+    mfHoldings: z.mf,
+    customHoldings,
+    angelEquity: a.equity,
+    angelConnected: a.connected,
+  };
 }
 
 // Enrich custom holdings with live LTP from Yahoo Finance

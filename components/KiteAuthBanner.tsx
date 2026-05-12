@@ -5,36 +5,38 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useHoldings } from './HoldingsContext';
 
 export function KiteAuthBanner() {
-  const { needsKiteReconnect } = useHoldings();
-  const [justAuthed, setJustAuthed] = useState(false);
+  const { needsKiteReconnect, needsAngelReconnect } = useHoldings();
+  const [toast, setToast] = useState<'kite' | 'angel' | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('kite_auth') === 'success') {
-      setJustAuthed(true);
+      setToast('kite');
       window.history.replaceState({}, '', window.location.pathname);
-    }
-    if (params.get('kite_auth') === 'failed') {
+    } else if (params.get('angel_auth') === 'success') {
+      setToast('angel');
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (params.get('kite_auth') === 'failed' || params.get('angel_auth') === 'failed') {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
 
   useEffect(() => {
-    if (justAuthed) {
-      const t = setTimeout(() => setJustAuthed(false), 4000);
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 4000);
       return () => clearTimeout(t);
     }
-  }, [justAuthed]);
+  }, [toast]);
 
-  function handleLogin() {
-    window.location.href = '/api/auth/kite/login';
-  }
+  // Only show the reconnect banner if ALL brokers need reconnecting — if even
+  // one broker is working, the user already has live data and the banner adds noise.
+  const showReconnectBanner = needsKiteReconnect && needsAngelReconnect;
 
   return (
     <>
       {/* Success toast — floats top-right, auto-dismisses */}
       <AnimatePresence>
-        {justAuthed && (
+        {toast && (
           <motion.div
             initial={{ opacity: 0, y: -16, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -46,15 +48,17 @@ export function KiteAuthBanner() {
             <span className="material-symbols-outlined text-secondary text-base">check_circle</span>
             <div>
               <p className="text-[11px] font-black uppercase tracking-widest text-secondary">Connected</p>
-              <p className="text-[10px] text-on-surface-variant">Zerodha live data active</p>
+              <p className="text-[10px] text-on-surface-variant">
+                {toast === 'angel' ? 'Angel One live data active' : 'Zerodha live data active'}
+              </p>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Reconnect banner — only shown when API returns reconnect_required */}
+      {/* Reconnect banner — only shown when no broker is providing live data */}
       <AnimatePresence>
-        {needsKiteReconnect && (
+        {showReconnectBanner && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
@@ -75,21 +79,35 @@ export function KiteAuthBanner() {
                   style={{ background: '#D4AF37', boxShadow: '0 0 8px #D4AF3760' }}
                 />
                 <p className="text-[11px] font-bold text-on-surface-variant truncate">
-                  Connect your Zerodha account to load live portfolio data
+                  Connect a broker account to load live portfolio data
                 </p>
               </div>
-              <button
-                onClick={handleLogin}
-                className="shrink-0 flex items-center gap-2 px-4 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all hover:scale-[1.02]"
-                style={{
-                  background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)',
-                  color: '#001a42',
-                  boxShadow: '0 0 16px rgba(173,198,255,0.2)',
-                }}
-              >
-                <span className="material-symbols-outlined text-sm">link</span>
-                Connect Zerodha
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => { window.location.href = '/api/auth/kite/login'; }}
+                  className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all hover:scale-[1.02]"
+                  style={{
+                    background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)',
+                    color: '#001a42',
+                    boxShadow: '0 0 16px rgba(173,198,255,0.2)',
+                  }}
+                >
+                  <span className="material-symbols-outlined text-sm">link</span>
+                  Zerodha
+                </button>
+                <button
+                  onClick={() => { window.location.href = '/api/auth/angel/login'; }}
+                  className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all hover:scale-[1.02]"
+                  style={{
+                    background: 'linear-gradient(135deg, #ff6b35 0%, #ffb347 100%)',
+                    color: '#1a0800',
+                    boxShadow: '0 0 16px rgba(255,107,53,0.2)',
+                  }}
+                >
+                  <span className="material-symbols-outlined text-sm">link</span>
+                  Angel One
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
