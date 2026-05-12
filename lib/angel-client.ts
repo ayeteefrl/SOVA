@@ -133,7 +133,11 @@ export async function refreshAngelToken(userId: string): Promise<boolean> {
   }
 }
 
-// Generate the Angel One publisher login URL
+// Generate the Angel One publisher login URL.
+// Passing redirect_url explicitly ensures Angel One uses the correct callback
+// even if the app configuration has a casing or trailing-slash discrepancy.
 export function getAngelLoginURL(): string {
-  return `https://smartapi.angelbroking.com/publisher-login?api_key=${process.env.ANGEL_API_KEY!}`;
+  const base = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000';
+  const redirectUrl = encodeURIComponent(`${base}/api/auth/angel/callback`);
+  return `https://smartapi.angelbroking.com/publisher-login?api_key=${process.env.ANGEL_API_KEY!}&redirect_url=${redirectUrl}`;
 }
