@@ -83,7 +83,7 @@ export default function PortfolioPage() {
   ];
 
   return (
-    <div className="flex-1 min-w-0 p-8 space-y-10 pb-16">
+    <div className="flex-1 min-w-0 p-4 md:p-8 space-y-6 md:space-y-10 pb-16">
 
         {/* Net worth banner */}
         <motion.div

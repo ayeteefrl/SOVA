@@ -453,7 +453,7 @@ export default function WatchlistPage() {
   const items = activeList?.items ?? [];
 
   return (
-    <div className="p-8 space-y-6 pb-16">
+    <div className="p-4 md:p-8 space-y-5 md:space-y-6 pb-16">
       {/* Watchlist Tabs */}
       <div className="flex items-center gap-2 flex-wrap">
         {lists.map((l) => (

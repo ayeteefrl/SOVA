@@ -222,7 +222,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="p-8 space-y-8 pb-16 relative">
+    <div className="p-4 md:p-8 space-y-5 md:space-y-8 pb-16 relative">
 
       {/* Disconnected banner */}
       <AnimatePresence>
@@ -269,7 +269,7 @@ export default function HomePage() {
             <p className="text-[10px] font-black uppercase tracking-[0.32em] text-gold mb-3">
               ⟡ SOVA Ledger · Morning Brief
             </p>
-            <h1 className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.02] text-on-surface">
+            <h1 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tighter leading-[1.02] text-on-surface">
               Good morning, <span className="gradient-text-gold" style={{ paddingRight: '0.1em' }}>{firstName}</span>.
             </h1>
             {netWorth > 0 ? (

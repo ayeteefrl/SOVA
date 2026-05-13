@@ -192,7 +192,7 @@ export default function NewsPage() {
   }
 
   return (
-    <div className="p-8 space-y-6 pb-16">
+    <div className="p-4 md:p-8 space-y-5 md:space-y-6 pb-16">
 
       {/* ── Control bar ── */}
       <div className="pb-8 border-b border-outline-variant/10 space-y-5">

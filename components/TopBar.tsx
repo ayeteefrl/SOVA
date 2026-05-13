@@ -36,6 +36,18 @@ export function TopBar() {
   const { refresh, isLoading, isRefreshing } = useHoldings();
 
   function handleRefresh() {
+    // Clear broker-sourced cached holdings so fetchHoldings shows the full
+    // loading skeleton and fetches everything fresh (custom holdings are kept).
+    try {
+      for (const key of ['sova-equity-holdings', 'sova-mf-holdings', 'sova-etf-holdings']) {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const arr = JSON.parse(raw) as Array<{ source?: string }>;
+        const custom = arr.filter((h) => !h.source || h.source === 'custom');
+        if (custom.length === 0) localStorage.removeItem(key);
+        else localStorage.setItem(key, JSON.stringify(custom));
+      }
+    } catch {}
     refresh();
     window.dispatchEvent(new Event('sova:refresh'));
   }

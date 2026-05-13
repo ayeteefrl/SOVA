@@ -220,7 +220,7 @@ export default function RealEstatePage() {
   const totalArea = properties.reduce((a, p) => a + (p.area ?? 0), 0);
 
   return (
-    <div className="p-8 space-y-8 pb-16 flex-1 min-w-0">
+    <div className="p-4 md:p-8 space-y-5 md:space-y-8 pb-16 flex-1 min-w-0">
 
         {/* KPI row 1 */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">

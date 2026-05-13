@@ -141,7 +141,7 @@ export default function PPFPage() {
   }
 
   return (
-    <div className="p-8 space-y-8 pb-16 flex-1 min-w-0">
+    <div className="p-4 md:p-8 space-y-5 md:space-y-8 pb-16 flex-1 min-w-0">
 
         {loading ? (
           <div className="text-center py-20">

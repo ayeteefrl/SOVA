@@ -377,7 +377,7 @@ export default function MFPage() {
   ] as const;
 
   return (
-    <div className="p-8 space-y-8 pb-16 flex-1 min-w-0">
+    <div className="p-4 md:p-8 space-y-5 md:space-y-8 pb-16 flex-1 min-w-0">
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">

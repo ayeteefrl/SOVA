@@ -141,13 +141,30 @@ function ColorPickerField({
   );
 }
 
+// Remove broker-sourced entries from localStorage, keep custom holdings
+function clearBrokerCache(broker: 'zerodha' | 'angel_one') {
+  try {
+    for (const key of ['sova-equity-holdings', 'sova-mf-holdings', 'sova-etf-holdings']) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const arr = JSON.parse(raw) as Array<{ source?: string }>;
+      const kept = arr.filter((h) => h.source !== broker);
+      if (kept.length === 0) localStorage.removeItem(key);
+      else localStorage.setItem(key, JSON.stringify(kept));
+    }
+  } catch {}
+}
+
 /* ── Integrations Panel ──────────────────────────────────────────── */
 function IntegrationsPanel() {
   const [kiteStatus, setKiteStatus] = useState<'loading' | 'connected' | 'disconnected'>('loading');
   const [angelStatus, setAngelStatus] = useState<'loading' | 'connected' | 'disconnected'>('loading');
   const [connectingKite, setConnectingKite] = useState(false);
   const [connectingAngel, setConnectingAngel] = useState(false);
+  const [disconnectingKite, setDisconnectingKite] = useState(false);
+  const [disconnectingAngel, setDisconnectingAngel] = useState(false);
   const [showOthers, setShowOthers] = useState(false);
+  const { refresh } = useHoldings();
 
   useEffect(() => {
     fetch('/api/auth/kite/status')
@@ -169,6 +186,28 @@ function IntegrationsPanel() {
   function handleConnectAngel() {
     setConnectingAngel(true);
     window.location.href = '/api/auth/angel/login';
+  }
+
+  async function handleDisconnectKite() {
+    setDisconnectingKite(true);
+    try {
+      await fetch('/api/auth/kite/disconnect', { method: 'DELETE' });
+      clearBrokerCache('zerodha');
+      setKiteStatus('disconnected');
+      refresh(); // re-derive holdings without Zerodha
+    } catch {}
+    setDisconnectingKite(false);
+  }
+
+  async function handleDisconnectAngel() {
+    setDisconnectingAngel(true);
+    try {
+      await fetch('/api/auth/angel/disconnect', { method: 'DELETE' });
+      clearBrokerCache('angel_one');
+      setAngelStatus('disconnected');
+      refresh(); // re-derive holdings without Angel One
+    } catch {}
+    setDisconnectingAngel(false);
   }
 
   const isKiteConnected = kiteStatus === 'connected';
@@ -215,6 +254,7 @@ function IntegrationsPanel() {
               ? 'Live holdings, trades, and portfolio data streaming from your Zerodha account.'
               : 'Connect your Zerodha account for live portfolio data, holdings, and trade history.'}
           </p>
+          {/* Primary action: Connect / Reconnect */}
           <button
             onClick={handleConnectKite}
             disabled={connectingKite || kiteStatus === 'loading'}
@@ -231,6 +271,20 @@ function IntegrationsPanel() {
             </span>
             {connectingKite ? 'Redirecting…' : isKiteConnected ? 'Reconnect Zerodha' : 'Connect Zerodha'}
           </button>
+          {/* Disconnect — only shown when connected */}
+          {isKiteConnected && (
+            <button
+              onClick={handleDisconnectKite}
+              disabled={disconnectingKite}
+              className="w-full h-8 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all hover:bg-[#ff4444]/10 disabled:opacity-40"
+              style={{ color: '#ff6666', border: '1px solid rgba(255,68,68,0.2)' }}
+            >
+              <span className="material-symbols-outlined text-xs">
+                {disconnectingKite ? 'hourglass_empty' : 'link_off'}
+              </span>
+              {disconnectingKite ? 'Disconnecting…' : 'Disconnect Zerodha'}
+            </button>
+          )}
         </div>
 
         {/* Angel One — live */}
@@ -250,6 +304,7 @@ function IntegrationsPanel() {
               ? 'Live holdings and portfolio data streaming from your Angel One account.'
               : 'Connect your Angel One account for live portfolio data and trade history.'}
           </p>
+          {/* Primary action: Connect / Reconnect */}
           <button
             onClick={handleConnectAngel}
             disabled={connectingAngel || angelStatus === 'loading'}
@@ -266,6 +321,20 @@ function IntegrationsPanel() {
             </span>
             {connectingAngel ? 'Redirecting…' : isAngelConnected ? 'Reconnect Angel One' : 'Connect Angel One'}
           </button>
+          {/* Disconnect — only shown when connected */}
+          {isAngelConnected && (
+            <button
+              onClick={handleDisconnectAngel}
+              disabled={disconnectingAngel}
+              className="w-full h-8 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all hover:bg-[#ff4444]/10 disabled:opacity-40"
+              style={{ color: '#ff6666', border: '1px solid rgba(255,68,68,0.2)' }}
+            >
+              <span className="material-symbols-outlined text-xs">
+                {disconnectingAngel ? 'hourglass_empty' : 'link_off'}
+              </span>
+              {disconnectingAngel ? 'Disconnecting…' : 'Disconnect Angel One'}
+            </button>
+          )}
         </div>
 
         {/* Remaining main brokers — coming soon */}

@@ -139,7 +139,7 @@ export default function ActivityPage() {
   }
 
   return (
-    <div className="p-8 space-y-8 pb-16">
+    <div className="p-4 md:p-8 space-y-5 md:space-y-8 pb-16">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <Card tier="low" className="p-6">
           <p className="text-[10px] uppercase tracking-widest text-outline font-bold">Inflows (30 days)</p>

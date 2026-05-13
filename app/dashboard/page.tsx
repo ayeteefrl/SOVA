@@ -275,7 +275,7 @@ export default function DashboardPage() {
   const taxCandidates = computeTaxCandidates(equityHoldings);
 
   return (
-    <div className="p-8 space-y-8 pb-16">
+    <div className="p-4 md:p-8 space-y-5 md:space-y-8 pb-16">
 
       {/* KPI Cards — real portfolio data */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">

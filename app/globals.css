@@ -95,19 +95,53 @@
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  /* Utility class for components that want an explicit thin scrollbar */
+  .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(77,142,255,0.3); border-radius: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+
+  /* Hide scrollbar visually but keep scrollability */
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+/* ── Global scrollbar theme ──────────────────────────────────────────────────
+   Replaces the OS default grey scrollbars with the SOVA dark-blue aesthetic.
+   Works in Chrome, Edge, Safari. Firefox uses scrollbar-color below.       */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(77, 142, 255, 0.25) transparent;
+}
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(77, 142, 255, 0.22);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(77, 142, 255, 0.45);
+}
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* ── Mobile: prevent content overflow on small viewports ─────────────────── */
+@media (max-width: 1024px) {
+  /* Tables that would overflow horizontally become scrollable containers */
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
-  .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: rgba(66, 71, 84, 0.6);
-    border-radius: 4px;
+  /* KPI grid: single column on very small screens */
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
-  .scrollbar-thin::-webkit-scrollbar-track {
-    background: transparent;
+}
+@media (max-width: 640px) {
+  .kpi-grid {
+    grid-template-columns: 1fr;
   }
 }
 
+/* ── Recharts override: remove default SVG outlines ─────────────────────── */
 /* Recharts override: remove default SVG outlines */
 .recharts-wrapper,
 .recharts-surface {
