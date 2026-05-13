@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function LoginPage() {
+export default function SignInPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,7 +34,7 @@ export default function LoginPage() {
         setError(data.error || 'Invalid credentials. Please try again.');
         return;
       }
-      router.push('/');
+      router.push('/home');
     } catch {
       setError('Network error. Please try again.');
     } finally {
@@ -47,10 +47,7 @@ export default function LoginPage() {
     if (resendTimerRef.current) clearInterval(resendTimerRef.current);
     resendTimerRef.current = setInterval(() => {
       setResendCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(resendTimerRef.current!);
-          return 0;
-        }
+        if (prev <= 1) { clearInterval(resendTimerRef.current!); return 0; }
         return prev - 1;
       });
     }, 1000);
@@ -90,8 +87,25 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-6 relative overflow-hidden">
       {/* Ambient glows */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-primary/8 rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-gold/5 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-primary/6 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] bg-gold/4 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/3 rounded-full blur-[160px] pointer-events-none" />
+
+      {/* Back to landing */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        className="absolute top-6 left-6"
+      >
+        <Link
+          href="/"
+          className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-outline hover:text-on-surface transition-colors"
+        >
+          <span className="material-symbols-outlined text-sm">arrow_back</span>
+          Back
+        </Link>
+      </motion.div>
 
       {/* SOVA Logo */}
       <motion.div
@@ -100,16 +114,17 @@ export default function LoginPage() {
         transition={{ duration: 0.5 }}
         className="flex flex-col items-center mb-10"
       >
-        <div className="w-14 h-14 mb-4">
-          <img src="/sovalogo.svg" alt="SOVA" className="w-full h-full object-contain" />
-        </div>
-        <p className="text-2xl font-black tracking-tighter gradient-text-primary">SOVA</p>
-        <p className="text-[10px] uppercase tracking-[0.3em] text-outline font-semibold mt-1">Private Wealth Terminal</p>
+        <Link href="/" className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10">
+            <img src="/sovalogo.svg" alt="SOVA" className="w-full h-full object-contain" />
+          </div>
+          <span className="text-2xl font-black tracking-tighter gradient-text-primary">SOVA</span>
+        </Link>
+        <p className="text-[10px] uppercase tracking-[0.3em] text-outline font-semibold">Private Wealth Terminal</p>
       </motion.div>
 
       <AnimatePresence mode="wait">
         {!showForgot ? (
-          /* ── Login Form ── */
           <motion.div
             key="login"
             initial={{ opacity: 0, y: 16 }}
@@ -122,11 +137,13 @@ export default function LoginPage() {
               className="rounded-2xl p-8 shadow-[0_32px_80px_-12px_rgba(0,0,0,0.7)]"
               style={{ background: '#0f1526', border: '1px solid rgba(66,71,84,0.4)' }}
             >
+              {/* Top shimmer line */}
+              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#adc6ff20] to-transparent rounded-t-2xl" />
+
               <h1 className="text-lg font-black tracking-tight text-on-surface mb-1">Welcome back</h1>
               <p className="text-[11px] text-outline font-semibold mb-7">Sign in to your portfolio terminal</p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Email */}
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">
                     Email Address
@@ -148,7 +165,6 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Password */}
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">
                     Password
@@ -179,7 +195,6 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Error */}
                 <AnimatePresence>
                   {error && (
                     <motion.div
@@ -194,7 +209,6 @@ export default function LoginPage() {
                   )}
                 </AnimatePresence>
 
-                {/* Forgot password link */}
                 <div className="flex justify-end">
                   <button
                     type="button"
@@ -205,7 +219,6 @@ export default function LoginPage() {
                   </button>
                 </div>
 
-                {/* Submit */}
                 <button
                   type="submit"
                   disabled={loading}
@@ -233,13 +246,12 @@ export default function LoginPage() {
 
             <p className="text-center text-[11px] text-outline font-semibold mt-6">
               No account?{' '}
-              <Link href="/register" className="text-primary-fixed-dim hover:text-primary transition-colors font-bold">
+              <Link href="/signup" className="text-primary-fixed-dim hover:text-primary transition-colors font-bold">
                 Create one
               </Link>
             </p>
           </motion.div>
         ) : (
-          /* ── Forgot Password Form ── */
           <motion.div
             key="forgot"
             initial={{ opacity: 0, y: 16 }}
@@ -257,7 +269,7 @@ export default function LoginPage() {
                 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-outline hover:text-on-surface transition-colors mb-6"
               >
                 <span className="material-symbols-outlined text-sm">arrow_back</span>
-                Back to login
+                Back to sign in
               </button>
 
               <h2 className="text-lg font-black tracking-tight text-on-surface mb-1">Reset password</h2>
@@ -294,7 +306,7 @@ export default function LoginPage() {
                         ) : (
                           <span className="material-symbols-outlined text-xs">send</span>
                         )}
-                        Haven&apos;t received email? Send again
+                        Haven&apos;t received it? Send again
                       </button>
                     )}
                   </div>
@@ -345,10 +357,14 @@ export default function LoginPage() {
         )}
       </AnimatePresence>
 
-      {/* Footer */}
-      <p className="mt-10 text-[9px] uppercase tracking-[0.3em] text-outline/50 font-semibold">
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.6 }}
+        className="mt-10 text-[9px] uppercase tracking-[0.3em] text-outline/50 font-semibold"
+      >
         ⟡ SOVA — Private Wealth Terminal
-      </p>
+      </motion.p>
     </div>
   );
 }

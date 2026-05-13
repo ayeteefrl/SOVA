@@ -81,7 +81,7 @@ function ResetPasswordContent() {
       }
 
       setSuccess(true);
-      setTimeout(() => router.push('/login'), 2000);
+      setTimeout(() => router.push('/sign-in'), 2000);
     } catch {
       setError('Network error. Please try again.');
     } finally {
@@ -159,7 +159,7 @@ function ResetPasswordContent() {
                   <p className="text-[11px] text-outline font-semibold">{error}</p>
                 </div>
                 <a
-                  href="/login"
+                  href="/sign-in"
                   className="mt-4 inline-block px-6 py-2.5 rounded-lg text-[11px] font-black uppercase tracking-widest"
                   style={{
                     background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)',
@@ -293,7 +293,7 @@ function ResetPasswordContent() {
 
             <p className="text-center text-[11px] text-outline font-semibold mt-6">
               Remember your password?{' '}
-              <a href="/login" className="text-primary-fixed-dim hover:text-primary transition-colors font-bold">
+              <a href="/sign-in" className="text-primary-fixed-dim hover:text-primary transition-colors font-bold">
                 Back to login
               </a>
             </p>

@@ -20,7 +20,7 @@ function LogoutButton() {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch { /* silent */ }
-    router.push('/login');
+    router.push('/sign-in');
   }
 
   return (
@@ -407,7 +407,7 @@ function DeleteAccountModal({ onClose }: { onClose: () => void }) {
       const res = await fetch('/api/auth/delete-account', { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete account');
       await fetch('/api/auth/logout', { method: 'POST' });
-      router.push('/login');
+      router.push('/sign-in');
     } catch {
       setError('Something went wrong. Please contact support.');
       setDeleting(false);

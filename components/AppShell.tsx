@@ -11,7 +11,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { PageTransition } from './ui/PageTransition';
 
 // Routes that render without the app shell (no sidebar, topbar, or ticker)
-const AUTH_PATHS = ['/login', '/register', '/reset-password'];
+const AUTH_PATHS = ['/', '/sign-in', '/signup', '/reset-password'];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
