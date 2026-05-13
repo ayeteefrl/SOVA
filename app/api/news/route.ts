@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getMassiveNews } from '@/lib/massive-client';
 
 const FEEDS = [
   { url: 'https://economictimes.indiatimes.com/markets/rss.cms', source: 'Economic Times', category: 'Markets' },
@@ -91,26 +92,56 @@ function timeAgo(dateStr: string): string {
   }
 }
 
+// ─── Massive news → same shape as RSS articles ────────────────────────────────
+async function fetchMassiveArticles(): Promise<ReturnType<typeof parseItems>> {
+  const raw = await getMassiveNews(undefined, 25);
+  return raw.map((a) => {
+    const lower = ((a.title ?? '') + ' ' + (a.description ?? '')).toLowerCase();
+    let sentiment: 'bullish' | 'bearish' | 'neutral' = 'neutral';
+    if (/surge|jump|rally|gain|rise|soar|profit|growth|record|bull/.test(lower)) sentiment = 'bullish';
+    else if (/fall|drop|crash|loss|decline|slump|risk|concern|weak|bear/.test(lower)) sentiment = 'bearish';
+
+    const headline = (a.title ?? '').slice(0, 180);
+    return {
+      id: `massive-${a.id}`,
+      headline,
+      source: a.publisher?.name ?? 'Massive',
+      category: 'Global',
+      summary: (a.description ?? headline).slice(0, 320),
+      url: a.article_url ?? '',
+      publishedAt: a.published_utc ?? '',
+      sentiment,
+      tickers: (a.tickers ?? []).slice(0, 3),
+    };
+  });
+}
+
 export async function GET() {
-  const results = await Promise.allSettled(
-    FEEDS.map(async ({ url, source, category }) => {
-      const res = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; SovaBot/1.0)',
-          Accept: 'application/rss+xml, application/xml, text/xml, */*',
-        },
-        next: { revalidate: 300 }, // cache 5 minutes
-      });
-      if (!res.ok) throw new Error(`${source} ${res.status}`);
-      const xml = await res.text();
-      return parseItems(xml, source, category);
-    }),
-  );
+  // Fetch RSS feeds and Massive news in parallel
+  const [rssResults, massiveArticles] = await Promise.all([
+    Promise.allSettled(
+      FEEDS.map(async ({ url, source, category }) => {
+        const res = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; SovaBot/1.0)',
+            Accept: 'application/rss+xml, application/xml, text/xml, */*',
+          },
+          next: { revalidate: 300 }, // cache 5 minutes
+        });
+        if (!res.ok) throw new Error(`${source} ${res.status}`);
+        const xml = await res.text();
+        return parseItems(xml, source, category);
+      }),
+    ),
+    fetchMassiveArticles(),
+  ]);
 
   const all: ReturnType<typeof parseItems> = [];
-  for (const r of results) {
+  for (const r of rssResults) {
     if (r.status === 'fulfilled') all.push(...r.value);
   }
+  // Merge Massive global news alongside RSS articles
+  all.push(...massiveArticles);
 
   // de-dupe by headline similarity, sort by recency
   const seen = new Set<string>();
@@ -128,7 +159,7 @@ export async function GET() {
     return bt - at;
   });
 
-  const output = deduped.slice(0, 30).map((item) => ({
+  const output = deduped.slice(0, 50).map((item) => ({
     ...item,
     time: timeAgo(item.publishedAt),
   }));
