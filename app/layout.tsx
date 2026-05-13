@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description:
     'A private, editorial wealth portfolio. Tonal, atmospheric, precise — engineered for clarity on capital.',
   icons: {
-    icon: '/favicon.svg',
+    icon: '/sovalogo.svg',
   },
 };
 

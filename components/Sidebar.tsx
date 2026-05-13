@@ -61,16 +61,7 @@ export function Sidebar() {
         {/* Logo */}
         <Link href="/" onClick={closeMobile} className={cn('flex items-center gap-3 group', collapsed && 'justify-center')}>
           <div className="w-10 h-10 shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-full h-full">
-              <defs>
-                <linearGradient id="sova-g" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stopColor="#adc6ff" />
-                  <stop offset="100%" stopColor="#D4AF37" />
-                </linearGradient>
-              </defs>
-              <rect width="32" height="32" rx="6" fill="#0d1322" />
-              <path d="M8 22 L8 10 L16 18 L24 10 L24 22" fill="none" stroke="url(#sova-g)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <img src="/sovalogo.svg" alt="SOVA" className="w-full h-full object-contain" />
           </div>
           {!collapsed && (
             <div>

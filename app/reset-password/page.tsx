@@ -103,16 +103,7 @@ function ResetPasswordContent() {
         className="flex flex-col items-center mb-10"
       >
         <div className="w-14 h-14 mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-full h-full">
-            <defs>
-              <linearGradient id="sova-reset-g" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#adc6ff" />
-                <stop offset="100%" stopColor="#D4AF37" />
-              </linearGradient>
-            </defs>
-            <rect width="32" height="32" rx="8" fill="#0d1322" />
-            <path d="M8 22 L8 10 L16 18 L24 10 L24 22" fill="none" stroke="url(#sova-reset-g)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <img src="/sovalogo.svg" alt="SOVA" className="w-full h-full object-contain" />
         </div>
         <p className="text-2xl font-black tracking-tighter gradient-text-primary">SOVA</p>
         <p className="text-[10px] uppercase tracking-[0.3em] text-outline font-semibold mt-1">Private Wealth Terminal</p>
