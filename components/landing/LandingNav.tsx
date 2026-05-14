@@ -8,9 +8,9 @@ import dynamic from 'next/dynamic';
 const SignInModal = dynamic(() => import('./SignInModal'), { ssr: false });
 
 const NAV_LINKS = [
-  { label: 'Home',        href: '#top',          scroll: true  },
-  { label: 'Product',     href: '#product',      scroll: true  },
+  { label: 'Home',        href: '#landing-top',  scroll: true  },
   { label: 'Features',    href: '#features',     scroll: true  },
+  { label: 'Why SOVA',   href: '#why-sova',     scroll: true  },
   { label: 'How It Works',href: '#how-it-works', scroll: true  },
   { label: 'FAQ',         href: '#faq',          scroll: true  },
 ];
@@ -36,12 +36,8 @@ export default function LandingNav() {
   function handleNavClick(e: React.MouseEvent<HTMLAnchorElement>, href: string) {
     e.preventDefault();
     setMenuOpen(false);
-    if (href === '#top') {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      const id = href.replace('#', '');
-      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-    }
+    const id = href.replace('#', '');
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   }
 
   return (

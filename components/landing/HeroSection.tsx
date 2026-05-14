@@ -9,8 +9,10 @@ const CurrencyCanvas = dynamic(() => import('./CurrencyCanvas'), { ssr: false })
 export default function HeroSection() {
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
-      {/* Canvas background */}
-      <CurrencyCanvas />
+      {/* Canvas background — hidden on small screens to avoid overlapping content */}
+      <div className="hidden sm:block">
+        <CurrencyCanvas />
+      </div>
 
       {/* Deep background gradient */}
       <div
@@ -41,7 +43,7 @@ export default function HeroSection() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.2 }}
-          className="text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter leading-[1.0] text-on-surface mb-6"
+          className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter leading-[1.0] text-on-surface mb-6"
         >
           Let&apos;s see how your{' '}
           <motion.span
@@ -78,7 +80,7 @@ export default function HeroSection() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.5 }}
-          className="flex items-center gap-4"
+          className="flex flex-col sm:flex-row items-center gap-4"
         >
           <Link
             href="/signup"
@@ -144,7 +146,7 @@ export default function HeroSection() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.75 }}
-          className="flex items-center gap-6 mt-8 text-[10px] font-bold uppercase tracking-widest text-outline/60"
+          className="flex flex-wrap justify-center items-center gap-4 md:gap-6 mt-8 text-[10px] font-bold uppercase tracking-widest text-outline/60"
         >
           <span className="flex items-center gap-1.5">
             <span className="material-symbols-outlined text-xs text-secondary">lock</span>

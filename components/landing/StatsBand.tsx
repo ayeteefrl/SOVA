@@ -14,7 +14,7 @@ export default function StatsBand() {
   const { ref, inView } = useInView({ triggerOnce: true, threshold: 0.2 });
 
   return (
-    <section id="product" ref={ref} className="py-20 px-6 relative overflow-hidden">
+    <section id="why-sova" ref={ref} className="py-20 px-6 relative overflow-hidden">
       {/* Separator line */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-16 bg-gradient-to-b from-transparent to-outline/20" />
 
@@ -25,7 +25,7 @@ export default function StatsBand() {
           transition={{ duration: 0.6 }}
           className="text-center mb-14"
         >
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-outline mb-3">By the numbers</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-outline mb-3">Why SOVA</p>
           <h2 className="text-3xl md:text-4xl font-black tracking-tighter text-on-surface">
             Built for serious investors
           </h2>

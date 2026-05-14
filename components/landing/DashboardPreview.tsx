@@ -198,13 +198,15 @@ export default function DashboardPreview() {
         </div>
 
         {/* App header */}
-        <div className="flex items-center justify-between px-5 h-11"
+        <div className="flex items-center justify-between px-4 h-11 gap-2"
           style={{ background: '#0b1120', borderBottom: '1px solid rgba(66,71,84,0.3)' }}>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <div className="w-5 h-5"><img src="/sovalogo.svg" alt="" className="w-full h-full object-contain" /></div>
             <span className="text-xs font-black tracking-tighter gradient-text-primary">SOVA</span>
           </div>
-          <SearchBar />
+          <div className="hidden sm:block flex-1 max-w-[180px]">
+            <SearchBar />
+          </div>
           <AddTradeRow />
         </div>
 
@@ -239,7 +241,7 @@ export default function DashboardPreview() {
         <div className="relative min-h-[380px] p-5">
           {activeTab === 'Overview' ? (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <KPI label="Net Worth"    value={fmt(NET_WORTH)}                             icon="diamond"     />
                 <KPI label="Day Change"   value={`+${fmt(DAY_CHANGE)} (+${DAY_PCT}%)`}       icon="trending_up" color="#4edea3" />
                 <KPI label="All-Time Gain" value={`+${fmt(ALL_TIME)}`}                       icon="insights"    color="#4edea3" />
@@ -276,12 +278,12 @@ export default function DashboardPreview() {
                   <p className="text-[9px] font-black uppercase tracking-widest text-outline">Top Holdings</p>
                 </div>
                 {HOLDINGS.map(h => (
-                  <div key={h.ticker} className="flex items-center justify-between px-4 py-2.5 hover:bg-surface-container-highest/10 transition-colors">
-                    <div>
+                  <div key={h.ticker} className="flex items-center justify-between px-4 py-2.5 hover:bg-surface-container-highest/10 transition-colors gap-2">
+                    <div className="min-w-0">
                       <p className="text-[11px] font-black text-on-surface">{h.ticker}</p>
-                      <p className="text-[9px] text-outline font-semibold">{h.name}</p>
+                      <p className="text-[9px] text-outline font-semibold truncate">{h.name}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right shrink-0">
                       <p className="text-[11px] font-black text-on-surface">{fmt(h.value)}</p>
                       <p className={`text-[9px] font-bold ${h.daily >= 0 ? 'text-secondary' : 'text-tertiary'}`}>
                         {h.daily >= 0 ? '+' : ''}{h.daily}%
@@ -306,9 +308,9 @@ export default function DashboardPreview() {
         </div>
 
         {/* Bottom strip */}
-        <div className="flex items-center justify-between px-5 py-3"
+        <div className="flex items-center justify-between gap-3 px-4 py-3 flex-wrap"
           style={{ background: '#070d1a', borderTop: '1px solid rgba(66,71,84,0.3)' }}>
-          <p className="text-[10px] text-outline font-semibold">Demo data · Sign up to connect your real portfolio</p>
+          <p className="text-[10px] text-outline font-semibold hidden sm:block">Demo data · Sign up to connect your real portfolio</p>
           <Link href="/signup"
             className="flex items-center gap-1.5 px-4 h-7 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all hover:scale-[1.02]"
             style={{ background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)', color: '#001a42' }}>
