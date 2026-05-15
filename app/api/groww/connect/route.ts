@@ -7,17 +7,17 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const { api_key, totp } = body as { api_key: string; totp: string };
+  const { totp } = body as { totp: string };
 
-  if (!api_key || !totp) {
-    return NextResponse.json({ error: 'api_key and totp are required' }, { status: 400 });
+  if (!totp) {
+    return NextResponse.json({ error: 'totp is required' }, { status: 400 });
   }
   if (!/^\d{6}$/.test(totp)) {
     return NextResponse.json({ error: 'TOTP must be a 6-digit code from your authenticator app' }, { status: 400 });
   }
 
   try {
-    const accessToken = await getGrowwAccessToken(api_key, totp);
+    const accessToken = await getGrowwAccessToken(totp);
     await saveGrowwSession(session.userId, accessToken);
     return NextResponse.json({ connected: true });
   } catch (err: unknown) {

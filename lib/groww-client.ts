@@ -1,27 +1,25 @@
 // Groww Trade API integration
 // Docs: https://groww.in/trade-api
-// Get API keys: https://groww.in/trade-api/api-keys
-// Requires ₹499/month subscription + active Groww trading account
-// Auth: API Key + TOTP (from authenticator app linked to your Groww account)
+// Auth: server-side API key (GROWW_API_KEY env) + user TOTP from authenticator app
 
 import { supabase } from './supabase';
 
 const GROWW_BASE = 'https://api.groww.in';
+const GROWW_API_KEY = process.env.GROWW_API_KEY ?? '';
 
-// Exchanges API key + TOTP for a bearer access token.
-// The TOTP comes from the authenticator app the user linked when generating their API key.
-export async function getGrowwAccessToken(apiKey: string, totp: string): Promise<string> {
+// Exchanges the server-side API key + user TOTP for a session access token.
+export async function getGrowwAccessToken(totp: string): Promise<string> {
+  if (!GROWW_API_KEY) throw new Error('GROWW_API_KEY not configured');
   const res = await fetch(`${GROWW_BASE}/v1/login/trading/auth-token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ api_key: apiKey, totp }),
+    body: JSON.stringify({ api_key: GROWW_API_KEY, totp }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message ?? `Groww auth failed: ${res.status}`);
   }
   const data = await res.json();
-  // Token field may be access_token or authToken depending on API version
   const token = data.access_token ?? data.authToken ?? data.token;
   if (!token) throw new Error('Groww returned no access token');
   return token;

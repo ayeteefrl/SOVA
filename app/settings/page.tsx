@@ -476,7 +476,7 @@ function IntegrationsPanel() {
 
         <BrokerCard
           name="Groww" category="Broker · Stocks & MF"
-          description={growwStatus === 'connected' ? 'Live equity holdings from your Groww account.' : 'Connect with your Groww API key and authenticator TOTP.'}
+          description={growwStatus === 'connected' ? 'Live equity holdings from your Groww account.' : 'Connect with your Groww authenticator TOTP to load live holdings.'}
           status={growwStatus}
           disconnecting={disconnecting === 'groww'}
           onConnect={() => setModal('groww')}
@@ -523,8 +523,7 @@ function IntegrationsPanel() {
             title="Groww" category="Broker · Stocks & MF"
             endpoint="/api/groww/connect"
             fields={[
-              { key: 'api_key', label: 'API Key', placeholder: 'From groww.in/trade-api/api-keys', hint: 'Requires ₹499/month Groww API subscription' },
-              { key: 'totp', label: 'TOTP (6-digit)', placeholder: '123456', type: 'text', hint: 'From the authenticator app you linked when generating the API key' },
+              { key: 'totp', label: 'TOTP (6-digit)', placeholder: '123456', type: 'text', hint: 'From the authenticator app linked to your Groww trading account' },
             ]}
             onSuccess={() => { setModal(null); setGrowwStatus('connected'); refresh(); }}
             onClose={() => setModal(null)}

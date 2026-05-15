@@ -37,7 +37,7 @@ export async function GET() {
       total: h.average_price > 0 ? ((h.ltp - h.average_price) / h.average_price) * 100 : 0,
       weight: 0,
       sector: h.sector,
-      source: 'custom' as const,
+      source: 'groww' as const,
     }));
 
     return NextResponse.json({ holdings });
