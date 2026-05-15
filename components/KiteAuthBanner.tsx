@@ -6,17 +6,18 @@ import { useHoldings } from './HoldingsContext';
 
 export function KiteAuthBanner() {
   const { needsKiteReconnect, needsAngelReconnect } = useHoldings();
-  const [toast, setToast] = useState<'kite' | 'angel' | null>(null);
+  const [toast, setToast] = useState<'kite' | 'angel' | 'upstox' | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('kite_auth') === 'success') {
       setToast('kite');
-      window.history.replaceState({}, '', window.location.pathname);
     } else if (params.get('angel_auth') === 'success') {
       setToast('angel');
-      window.history.replaceState({}, '', window.location.pathname);
-    } else if (params.get('kite_auth') === 'failed' || params.get('angel_auth') === 'failed') {
+    } else if (params.get('upstox_auth') === 'success') {
+      setToast('upstox');
+    }
+    if ([...params.keys()].some((k) => k.endsWith('_auth'))) {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
@@ -49,7 +50,7 @@ export function KiteAuthBanner() {
             <div>
               <p className="text-[11px] font-black uppercase tracking-widest text-secondary">Connected</p>
               <p className="text-[10px] text-on-surface-variant">
-                {toast === 'angel' ? 'Angel One live data active' : 'Zerodha live data active'}
+                {toast === 'angel' ? 'Angel One live data active' : toast === 'upstox' ? 'Upstox live data active' : 'Zerodha live data active'}
               </p>
             </div>
           </motion.div>

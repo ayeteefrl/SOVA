@@ -34,7 +34,7 @@ export async function GET() {
       daily: h.day_change_percentage ?? 0,
       total: h.average_price > 0 ? ((h.last_price - h.average_price) / h.average_price) * 100 : 0,
       weight: 0,
-      source: 'zerodha' as const, // reuse existing source type; treat upstox as equity
+      source: 'upstox' as const,
     }));
 
     return NextResponse.json({ holdings });

@@ -13,6 +13,10 @@ interface HoldingsContextType {
   intradayReady: boolean;
   needsKiteReconnect: boolean;
   needsAngelReconnect: boolean;
+  needsUpstoxReconnect: boolean;
+  needsGrowwReconnect: boolean;
+  needsHdfcReconnect: boolean;
+  needsMotilaReconnect: boolean;
   refresh: () => void;
   addHolding: (holding: Holding, category: 'equity' | 'mf' | 'etf') => void;
   updateHolding: (id: string, updates: Partial<Holding>, category: 'equity' | 'mf' | 'etf') => void;
@@ -66,6 +70,10 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
   });
   const [needsKiteReconnect, setNeedsKiteReconnect] = useState(false);
   const [needsAngelReconnect, setNeedsAngelReconnect] = useState(false);
+  const [needsUpstoxReconnect, setNeedsUpstoxReconnect] = useState(false);
+  const [needsGrowwReconnect, setNeedsGrowwReconnect] = useState(false);
+  const [needsHdfcReconnect, setNeedsHdfcReconnect] = useState(false);
+  const [needsMotilaReconnect, setNeedsMotilaReconnect] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   // True once the first live API response with real dayAbs values has been received
   const [intradayReady, setIntradayReady] = useState(false);
@@ -85,38 +93,51 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
     try {
       // Fetch each broker independently — a failure in one must not affect the others.
       // Custom holdings and MF are always fetched regardless of broker status.
-      const { zerodhaEquity, zerodhaConnected, mfHoldings, customHoldings, angelEquity, angelConnected } =
-        await fetchAllSources();
+      const {
+        zerodhaEquity, zerodhaConnected, mfHoldings, customHoldings,
+        angelEquity, angelConnected,
+        upstoxEquity, upstoxConnected,
+        growwEquity, growwConnected,
+        hdfcEquity, hdfcConnected,
+        motilaEquity, motilaConnected,
+      } = await fetchAllSources();
 
       setNeedsKiteReconnect(!zerodhaConnected);
       setNeedsAngelReconnect(!angelConnected);
+      setNeedsUpstoxReconnect(!upstoxConnected);
+      setNeedsGrowwReconnect(!growwConnected);
+      setNeedsHdfcReconnect(!hdfcConnected);
+      setNeedsMotilaReconnect(!motilaConnected);
 
-      // If both brokers are unavailable, fall back to cached data + custom
-      if (!zerodhaConnected && !angelConnected) {
+      const anyBrokerConnected = zerodhaConnected || angelConnected || upstoxConnected || growwConnected || hdfcConnected || motilaConnected;
+
+      // If no brokers are connected, fall back to cached data + custom
+      if (!anyBrokerConnected) {
         const enriched = await enrichWithLivePrices(customHoldings);
         loadFromCache(enriched);
         return;
       }
 
-      // Build a set of tickers already covered by live broker data
-      const brokerTickerSet = new Set([
-        ...zerodhaEquity.map((h) => normalizeTicker(h.ticker ?? '')),
-        ...angelEquity.map((h) => normalizeTicker(h.ticker ?? '')),
-      ]);
+      // Build a deduplicated set — priority: Zerodha > Angel > Upstox > Groww > HDFC > Motilal > custom
+      const seenTickers = new Set<string>();
+      const brokerFeeds = [zerodhaEquity, angelEquity, upstoxEquity, growwEquity, hdfcEquity, motilaEquity];
+      const deduped: Holding[] = [];
+      for (const feed of brokerFeeds) {
+        for (const h of feed) {
+          const key = normalizeTicker(h.ticker ?? '');
+          if (!key || seenTickers.has(key)) continue;
+          seenTickers.add(key);
+          deduped.push(h);
+        }
+      }
 
-      // Only enrich custom holdings not already present in a broker feed
+      // Only enrich custom holdings not already present in any broker feed
       const extraCustom = customHoldings.filter(
-        (h) => !brokerTickerSet.has(normalizeTicker(h.ticker ?? ''))
+        (h) => !seenTickers.has(normalizeTicker(h.ticker ?? ''))
       );
       const enrichedCustom = await enrichWithLivePrices(extraCustom);
 
-      // Merge: Zerodha + Angel One (deduped by ticker) + custom remainder
-      const angelTickerSet = new Set(angelEquity.map((h) => normalizeTicker(h.ticker ?? '')));
-      const deduplicatedZerodha = zerodhaEquity.filter(
-        (h) => !angelTickerSet.has(normalizeTicker(h.ticker ?? ''))
-      );
-
-      const equity: Holding[] = [...deduplicatedZerodha, ...angelEquity, ...enrichedCustom];
+      const equity: Holding[] = [...deduped, ...enrichedCustom];
       setEquityHoldings(equity);
       setIntradayReady(true); // batched with setEquityHoldings — single render with correct dayAbs
       try { localStorage.setItem('sova-equity-holdings', JSON.stringify(stripIntraday(equity))); } catch {}
@@ -321,7 +342,9 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
   return (
     <HoldingsContext.Provider value={{
       equityHoldings, mutualFundHoldings, etfHoldings,
-      isLoading, isRefreshing, intradayReady, needsKiteReconnect, needsAngelReconnect,
+      isLoading, isRefreshing, intradayReady,
+      needsKiteReconnect, needsAngelReconnect,
+      needsUpstoxReconnect, needsGrowwReconnect, needsHdfcReconnect, needsMotilaReconnect,
       refresh: fetchHoldings,
       addHolding, updateHolding, removeHolding, updateHoldingsFromActivity,
     }}>
@@ -339,12 +362,13 @@ export function useHoldings() {
 // Fetch all data sources in parallel with full isolation.
 // A network or auth failure in any one broker leaves the others unaffected.
 async function fetchAllSources(): Promise<{
-  zerodhaEquity: Holding[];
-  zerodhaConnected: boolean;
-  mfHoldings: Holding[];
-  customHoldings: Holding[];
-  angelEquity: Holding[];
-  angelConnected: boolean;
+  zerodhaEquity: Holding[]; zerodhaConnected: boolean;
+  mfHoldings: Holding[]; customHoldings: Holding[];
+  angelEquity: Holding[]; angelConnected: boolean;
+  upstoxEquity: Holding[]; upstoxConnected: boolean;
+  growwEquity: Holding[]; growwConnected: boolean;
+  hdfcEquity: Holding[]; hdfcConnected: boolean;
+  motilaEquity: Holding[]; motilaConnected: boolean;
 }> {
   const fetchZerodha = async () => {
     try {
@@ -394,7 +418,26 @@ async function fetchAllSources(): Promise<{
     }
   };
 
-  const [z, a, customHoldings] = await Promise.all([fetchZerodha(), fetchAngel(), fetchCustom()]);
+  const fetchBroker = async (path: string, source: string) => {
+    try {
+      const res = await fetch(path);
+      const data = await res.json();
+      if (data.error?.includes('unauthorized')) return { equity: [], connected: false };
+      return { equity: (data.holdings ?? []) as Holding[], connected: (data.holdings?.length ?? 0) >= 0 && !data.error };
+    } catch {
+      return { equity: [], connected: false };
+    }
+  };
+
+  const [z, a, customHoldings, upstox, groww, hdfc, motila] = await Promise.all([
+    fetchZerodha(),
+    fetchAngel(),
+    fetchCustom(),
+    fetchBroker('/api/upstox/holdings', 'upstox'),
+    fetchBroker('/api/groww/holdings', 'groww'),
+    fetchBroker('/api/hdfc/holdings', 'hdfc'),
+    fetchBroker('/api/motilal/holdings', 'motilal'),
+  ]);
 
   return {
     zerodhaEquity: z.equity,
@@ -403,6 +446,14 @@ async function fetchAllSources(): Promise<{
     customHoldings,
     angelEquity: a.equity,
     angelConnected: a.connected,
+    upstoxEquity: upstox.equity,
+    upstoxConnected: upstox.connected,
+    growwEquity: groww.equity,
+    growwConnected: groww.connected,
+    hdfcEquity: hdfc.equity,
+    hdfcConnected: hdfc.connected,
+    motilaEquity: motila.equity,
+    motilaConnected: motila.connected,
   };
 }
 

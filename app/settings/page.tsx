@@ -155,80 +155,275 @@ function clearBrokerCache(broker: 'zerodha' | 'angel_one') {
   } catch {}
 }
 
+/* ── Shared broker status helpers ───────────────────────────────── */
+type BrokerStatus = 'loading' | 'connected' | 'disconnected';
+
+function statusColor(s: BrokerStatus) {
+  return s === 'connected' ? '#4edea3' : s === 'loading' ? '#D4AF37' : '#8c909f';
+}
+function statusLabel(s: BrokerStatus) {
+  return s === 'loading' ? 'Checking…' : s === 'connected' ? 'Connected' : 'Not Connected';
+}
+
+/* ── Credential modal (for non-OAuth brokers) ────────────────────── */
+interface CredField { key: string; label: string; type?: string; placeholder?: string; hint?: string }
+function CredentialModal({
+  title, category, fields, endpoint, onSuccess, onClose,
+}: {
+  title: string; category: string; fields: CredField[];
+  endpoint: string; onSuccess: () => void; onClose: () => void;
+}) {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? 'Connection failed'); setLoading(false); return; }
+      onSuccess();
+    } catch {
+      setError('Network error. Please try again.');
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[400] flex items-center justify-center p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-[#080e1d]/80 backdrop-blur-xl" />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 16 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-md rounded-2xl overflow-hidden shadow-[0_32px_80px_-12px_rgba(0,0,0,0.9)]"
+        style={{ background: '#0f1526', border: '1px solid rgba(66,71,84,0.4)' }}
+      >
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#adc6ff30] to-transparent" />
+        <div className="p-7">
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <p className="text-sm font-black text-[#dde2f8]">Connect {title}</p>
+              <p className="text-[10px] text-[#8c909f] font-bold uppercase tracking-widest mt-0.5">{category}</p>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8c909f] hover:text-[#dde2f8] transition-colors">
+              <span className="material-symbols-outlined text-sm">close</span>
+            </button>
+          </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {fields.map((f) => (
+              <div key={f.key} className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-widest text-[#8c909f]">{f.label}</label>
+                <input
+                  type={f.type ?? 'text'}
+                  placeholder={f.placeholder}
+                  value={values[f.key] ?? ''}
+                  onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                  required
+                  className="w-full h-11 px-4 rounded-xl text-sm font-bold text-[#dde2f8] placeholder-[#424754] outline-none focus:ring-1 focus:ring-[#4d8eff]/60"
+                  style={{ background: '#1a2035', border: '1px solid #2f3445' }}
+                />
+                {f.hint && <p className="text-[9px] text-[#424754]">{f.hint}</p>}
+              </div>
+            ))}
+            {error && (
+              <div className="p-3 rounded-xl bg-[#ffb2b7]/10 border border-[#ffb2b7]/20">
+                <p className="text-[11px] text-[#ffb2b7] font-semibold">{error}</p>
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full h-11 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-40 transition-all hover:scale-[1.01]"
+              style={{ background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)', color: '#001a42', boxShadow: '0 0 20px rgba(173,198,255,0.2)' }}
+            >
+              <span className="material-symbols-outlined text-sm">{loading ? 'hourglass_empty' : 'link'}</span>
+              {loading ? 'Connecting…' : `Connect ${title}`}
+            </button>
+          </form>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+/* ── Single broker card ──────────────────────────────────────────── */
+function BrokerCard({
+  name, category, description, status, onConnect, onDisconnect, connecting, disconnecting,
+}: {
+  name: string; category: string; description: string; status: BrokerStatus;
+  onConnect: () => void; onDisconnect: () => void;
+  connecting?: boolean; disconnecting?: boolean;
+}) {
+  const color = statusColor(status);
+  const isConnected = status === 'connected';
+  return (
+    <div className="p-5 rounded-xl bg-surface-container-highest/20 flex flex-col gap-4">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm font-black text-on-surface">{name}</p>
+          <p className="text-[10px] text-outline font-bold uppercase tracking-widest mt-0.5">{category}</p>
+        </div>
+        <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full"
+          style={{ backgroundColor: `${color}15`, color }}>
+          {statusLabel(status)}
+        </span>
+      </div>
+      <p className="text-[10px] text-outline leading-relaxed">{description}</p>
+      <button
+        onClick={onConnect}
+        disabled={connecting || status === 'loading'}
+        className={cn(
+          'w-full h-10 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
+          isConnected
+            ? 'bg-surface-container-highest/40 text-on-surface hover:bg-surface-container-highest/60'
+            : 'gradient-primary text-on-primary-container shadow-glow hover:scale-[1.01]',
+          (connecting || status === 'loading') && 'opacity-50 cursor-not-allowed',
+        )}
+      >
+        <span className="material-symbols-outlined text-sm">
+          {connecting ? 'hourglass_empty' : isConnected ? 'sync' : 'link'}
+        </span>
+        {connecting ? 'Connecting…' : isConnected ? `Reconnect ${name}` : `Connect ${name}`}
+      </button>
+      {isConnected && (
+        <button
+          onClick={onDisconnect}
+          disabled={disconnecting}
+          className="w-full h-8 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all hover:bg-[#ff4444]/10 disabled:opacity-40"
+          style={{ color: '#ff6666', border: '1px solid rgba(255,68,68,0.2)' }}
+        >
+          <span className="material-symbols-outlined text-xs">
+            {disconnecting ? 'hourglass_empty' : 'link_off'}
+          </span>
+          {disconnecting ? 'Disconnecting…' : `Disconnect ${name}`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ── CAMS PDF upload card ─────────────────────────────────────────── */
+function CAMSCard() {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [status, setStatus] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
+  const [result, setResult] = useState('');
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setStatus('uploading');
+    setResult('');
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const res = await fetch('/api/cams/parse', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) { setStatus('error'); setResult(data.error ?? 'Parse failed'); return; }
+      setStatus('done');
+      setResult(`${data.imported} mutual fund holdings imported${data.investorName ? ` for ${data.investorName}` : ''}.`);
+      window.dispatchEvent(new Event('sova:refresh'));
+    } catch {
+      setStatus('error');
+      setResult('Upload failed. Please try again.');
+    }
+  }
+
+  return (
+    <div className="p-5 rounded-xl bg-surface-container-highest/20 flex flex-col gap-4">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm font-black text-on-surface">CAMS</p>
+          <p className="text-[10px] text-outline font-bold uppercase tracking-widest mt-0.5">MF Registrar · CAS Import</p>
+        </div>
+        <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full"
+          style={{ backgroundColor: status === 'done' ? '#4edea315' : '#8c909f15', color: status === 'done' ? '#4edea3' : '#8c909f' }}>
+          {status === 'done' ? 'Imported' : status === 'uploading' ? 'Parsing…' : 'PDF Upload'}
+        </span>
+      </div>
+      <p className="text-[10px] text-outline leading-relaxed">
+        Download your CAS PDF from <span className="text-[#adc6ff] font-bold">mfcentral.com → Statements → CAS</span> and upload it here to import all your mutual fund holdings.
+      </p>
+      {result && (
+        <p className={cn('text-[10px] font-semibold', status === 'error' ? 'text-[#ffb2b7]' : 'text-[#4edea3]')}>{result}</p>
+      )}
+      <button
+        onClick={() => fileRef.current?.click()}
+        disabled={status === 'uploading'}
+        className="w-full h-10 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 gradient-primary text-on-primary-container shadow-glow hover:scale-[1.01] transition-all disabled:opacity-50"
+      >
+        <span className="material-symbols-outlined text-sm">
+          {status === 'uploading' ? 'hourglass_empty' : 'upload_file'}
+        </span>
+        {status === 'uploading' ? 'Parsing PDF…' : 'Upload CAS PDF'}
+      </button>
+      <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={handleFile} />
+    </div>
+  );
+}
+
 /* ── Integrations Panel ──────────────────────────────────────────── */
 function IntegrationsPanel() {
-  const [kiteStatus, setKiteStatus] = useState<'loading' | 'connected' | 'disconnected'>('loading');
-  const [angelStatus, setAngelStatus] = useState<'loading' | 'connected' | 'disconnected'>('loading');
-  const [connectingKite, setConnectingKite] = useState(false);
-  const [connectingAngel, setConnectingAngel] = useState(false);
-  const [disconnectingKite, setDisconnectingKite] = useState(false);
-  const [disconnectingAngel, setDisconnectingAngel] = useState(false);
-  const [showOthers, setShowOthers] = useState(false);
   const { refresh } = useHoldings();
 
-  useEffect(() => {
-    fetch('/api/auth/kite/status')
-      .then((r) => r.json())
-      .then((d) => setKiteStatus(d.authenticated ? 'connected' : 'disconnected'))
-      .catch(() => setKiteStatus('disconnected'));
+  // OAuth brokers
+  const [kiteStatus, setKiteStatus] = useState<BrokerStatus>('loading');
+  const [angelStatus, setAngelStatus] = useState<BrokerStatus>('loading');
+  const [upstoxStatus, setUpstoxStatus] = useState<BrokerStatus>('loading');
+  const [connectingKite, setConnectingKite] = useState(false);
+  const [connectingAngel, setConnectingAngel] = useState(false);
+  const [connectingUpstox, setConnectingUpstox] = useState(false);
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
 
-    fetch('/api/auth/angel/status')
-      .then((r) => r.json())
-      .then((d) => setAngelStatus(d.authenticated ? 'connected' : 'disconnected'))
-      .catch(() => setAngelStatus('disconnected'));
+  // Credential-modal brokers
+  const [growwStatus, setGrowwStatus] = useState<BrokerStatus>('loading');
+  const [hdfcStatus, setHdfcStatus] = useState<BrokerStatus>('loading');
+  const [motilaStatus, setMotilaStatus] = useState<BrokerStatus>('loading');
+  const [modal, setModal] = useState<'groww' | 'hdfc' | 'motilal' | null>(null);
+
+  useEffect(() => {
+    const check = (url: string, key: string, setter: (s: BrokerStatus) => void) =>
+      fetch(url).then((r) => r.json())
+        .then((d) => setter(d.connected || d.authenticated ? 'connected' : 'disconnected'))
+        .catch(() => setter('disconnected'));
+
+    check('/api/auth/kite/status', 'authenticated', setKiteStatus);
+    check('/api/auth/angel/status', 'authenticated', setAngelStatus);
+    check('/api/upstox/status', 'connected', setUpstoxStatus);
+    check('/api/groww/status', 'connected', setGrowwStatus);
+    check('/api/hdfc/status', 'connected', setHdfcStatus);
+    check('/api/motilal/status', 'connected', setMotilaStatus);
   }, []);
 
-  function handleConnectKite() {
-    setConnectingKite(true);
-    window.location.href = '/api/auth/kite/login';
-  }
-
-  function handleConnectAngel() {
-    setConnectingAngel(true);
-    window.location.href = '/api/auth/angel/login';
-  }
-
-  async function handleDisconnectKite() {
-    setDisconnectingKite(true);
+  async function handleDisconnect(broker: string, url: string, cacheKey?: string) {
+    setDisconnecting(broker);
     try {
-      await fetch('/api/auth/kite/disconnect', { method: 'DELETE' });
-      clearBrokerCache('zerodha');
-      setKiteStatus('disconnected');
-      refresh(); // re-derive holdings without Zerodha
+      await fetch(url, { method: 'POST' });
+      if (cacheKey) clearBrokerCache(cacheKey as 'zerodha' | 'angel_one');
+      if (broker === 'zerodha') setKiteStatus('disconnected');
+      else if (broker === 'angel') setAngelStatus('disconnected');
+      else if (broker === 'upstox') setUpstoxStatus('disconnected');
+      else if (broker === 'groww') setGrowwStatus('disconnected');
+      else if (broker === 'hdfc') setHdfcStatus('disconnected');
+      else if (broker === 'motilal') setMotilaStatus('disconnected');
+      refresh();
     } catch {}
-    setDisconnectingKite(false);
+    setDisconnecting(null);
   }
 
-  async function handleDisconnectAngel() {
-    setDisconnectingAngel(true);
-    try {
-      await fetch('/api/auth/angel/disconnect', { method: 'DELETE' });
-      clearBrokerCache('angel_one');
-      setAngelStatus('disconnected');
-      refresh(); // re-derive holdings without Angel One
-    } catch {}
-    setDisconnectingAngel(false);
-  }
-
-  const isKiteConnected = kiteStatus === 'connected';
-  const kiteStatusColor = isKiteConnected ? '#4edea3' : kiteStatus === 'loading' ? '#D4AF37' : '#8c909f';
-  const kiteStatusLabel = kiteStatus === 'loading' ? 'Checking…' : isKiteConnected ? 'Connected' : 'Not Connected';
-
-  const isAngelConnected = angelStatus === 'connected';
-  const angelStatusColor = isAngelConnected ? '#4edea3' : angelStatus === 'loading' ? '#D4AF37' : '#8c909f';
-  const angelStatusLabel = angelStatus === 'loading' ? 'Checking…' : isAngelConnected ? 'Connected' : 'Not Connected';
-
-  const mainBrokers = [
-    { name: 'Groww', category: 'Broker · Stocks & MF' },
-    { name: 'Upstox', category: 'Broker · Discount' },
-  ];
-
-  const otherBrokers = [
-    { name: 'HDFC Securities', category: 'Broker · Bank-Backed' },
+  const comingSoon = [
     { name: 'ICICI Direct', category: 'Broker · Bank-Backed' },
-    { name: 'Motilal Oswal', category: 'Broker · Full-Service' },
     { name: 'Kotak Securities', category: 'Broker · Bank-Backed' },
-    { name: 'CAMS', category: 'MF Registrar' },
     { name: 'ClearTax', category: 'Tax Platform' },
   ];
 
@@ -237,109 +432,64 @@ function IntegrationsPanel() {
       <SectionHeader title="Integrations" subtitle="Brokers and financial platforms" className="mb-6" />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-        {/* Zerodha — live, functional */}
-        <div className="p-5 rounded-xl bg-surface-container-highest/20 flex flex-col gap-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm font-black text-on-surface">Zerodha Kite</p>
-              <p className="text-[10px] text-outline font-bold uppercase tracking-widest mt-0.5">Broker · Live Data</p>
-            </div>
-            <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full"
-              style={{ backgroundColor: `${kiteStatusColor}15`, color: kiteStatusColor }}>
-              {kiteStatusLabel}
-            </span>
-          </div>
-          <p className="text-[10px] text-outline leading-relaxed">
-            {isKiteConnected
-              ? 'Live holdings, trades, and portfolio data streaming from your Zerodha account.'
-              : 'Connect your Zerodha account for live portfolio data, holdings, and trade history.'}
-          </p>
-          {/* Primary action: Connect / Reconnect */}
-          <button
-            onClick={handleConnectKite}
-            disabled={connectingKite || kiteStatus === 'loading'}
-            className={cn(
-              'w-full h-10 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
-              isKiteConnected
-                ? 'bg-surface-container-highest/40 text-on-surface hover:bg-surface-container-highest/60'
-                : 'gradient-primary text-on-primary-container shadow-glow hover:scale-[1.01]',
-              (connectingKite || kiteStatus === 'loading') && 'opacity-50 cursor-not-allowed',
-            )}
-          >
-            <span className="material-symbols-outlined text-sm">
-              {connectingKite ? 'hourglass_empty' : isKiteConnected ? 'sync' : 'link'}
-            </span>
-            {connectingKite ? 'Redirecting…' : isKiteConnected ? 'Reconnect Zerodha' : 'Connect Zerodha'}
-          </button>
-          {/* Disconnect — only shown when connected */}
-          {isKiteConnected && (
-            <button
-              onClick={handleDisconnectKite}
-              disabled={disconnectingKite}
-              className="w-full h-8 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all hover:bg-[#ff4444]/10 disabled:opacity-40"
-              style={{ color: '#ff6666', border: '1px solid rgba(255,68,68,0.2)' }}
-            >
-              <span className="material-symbols-outlined text-xs">
-                {disconnectingKite ? 'hourglass_empty' : 'link_off'}
-              </span>
-              {disconnectingKite ? 'Disconnecting…' : 'Disconnect Zerodha'}
-            </button>
-          )}
-        </div>
+        <BrokerCard
+          name="Zerodha Kite" category="Broker · Live Data"
+          description={kiteStatus === 'connected' ? 'Live holdings, trades, and portfolio data streaming from your Zerodha account.' : 'Connect your Zerodha account for live portfolio data, holdings, and trade history.'}
+          status={kiteStatus}
+          connecting={connectingKite} disconnecting={disconnecting === 'zerodha'}
+          onConnect={() => { setConnectingKite(true); window.location.href = '/api/auth/kite/login'; }}
+          onDisconnect={() => handleDisconnect('zerodha', '/api/auth/kite/disconnect', 'zerodha')}
+        />
 
-        {/* Angel One — live */}
-        <div className="p-5 rounded-xl bg-surface-container-highest/20 flex flex-col gap-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm font-black text-on-surface">Angel One</p>
-              <p className="text-[10px] text-outline font-bold uppercase tracking-widest mt-0.5">Broker · Full-Service</p>
-            </div>
-            <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full"
-              style={{ backgroundColor: `${angelStatusColor}15`, color: angelStatusColor }}>
-              {angelStatusLabel}
-            </span>
-          </div>
-          <p className="text-[10px] text-outline leading-relaxed">
-            {isAngelConnected
-              ? 'Live holdings and portfolio data streaming from your Angel One account.'
-              : 'Connect your Angel One account for live portfolio data and trade history.'}
-          </p>
-          {/* Primary action: Connect / Reconnect */}
-          <button
-            onClick={handleConnectAngel}
-            disabled={connectingAngel || angelStatus === 'loading'}
-            className={cn(
-              'w-full h-10 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
-              isAngelConnected
-                ? 'bg-surface-container-highest/40 text-on-surface hover:bg-surface-container-highest/60'
-                : 'gradient-primary text-on-primary-container shadow-glow hover:scale-[1.01]',
-              (connectingAngel || angelStatus === 'loading') && 'opacity-50 cursor-not-allowed',
-            )}
-          >
-            <span className="material-symbols-outlined text-sm">
-              {connectingAngel ? 'hourglass_empty' : isAngelConnected ? 'sync' : 'link'}
-            </span>
-            {connectingAngel ? 'Redirecting…' : isAngelConnected ? 'Reconnect Angel One' : 'Connect Angel One'}
-          </button>
-          {/* Disconnect — only shown when connected */}
-          {isAngelConnected && (
-            <button
-              onClick={handleDisconnectAngel}
-              disabled={disconnectingAngel}
-              className="w-full h-8 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all hover:bg-[#ff4444]/10 disabled:opacity-40"
-              style={{ color: '#ff6666', border: '1px solid rgba(255,68,68,0.2)' }}
-            >
-              <span className="material-symbols-outlined text-xs">
-                {disconnectingAngel ? 'hourglass_empty' : 'link_off'}
-              </span>
-              {disconnectingAngel ? 'Disconnecting…' : 'Disconnect Angel One'}
-            </button>
-          )}
-        </div>
+        <BrokerCard
+          name="Angel One" category="Broker · Full-Service"
+          description={angelStatus === 'connected' ? 'Live holdings and portfolio data streaming from your Angel One account.' : 'Connect your Angel One account for live portfolio data and trade history.'}
+          status={angelStatus}
+          connecting={connectingAngel} disconnecting={disconnecting === 'angel'}
+          onConnect={() => { setConnectingAngel(true); window.location.href = '/api/auth/angel/login'; }}
+          onDisconnect={() => handleDisconnect('angel', '/api/auth/angel/disconnect', 'angel_one')}
+        />
 
-        {/* Remaining main brokers — coming soon */}
-        {mainBrokers.map((b) => (
-          <div key={b.name} className="p-5 rounded-xl bg-surface-container-highest/20 flex items-center justify-between opacity-60">
+        <BrokerCard
+          name="Upstox" category="Broker · Discount"
+          description={upstoxStatus === 'connected' ? 'Live equity holdings and positions from your Upstox account.' : 'Connect your Upstox account for live holdings and mutual fund data.'}
+          status={upstoxStatus}
+          connecting={connectingUpstox} disconnecting={disconnecting === 'upstox'}
+          onConnect={() => { setConnectingUpstox(true); window.location.href = '/api/upstox/auth'; }}
+          onDisconnect={() => handleDisconnect('upstox', '/api/upstox/disconnect')}
+        />
+
+        <BrokerCard
+          name="Groww" category="Broker · Stocks & MF"
+          description={growwStatus === 'connected' ? 'Live equity holdings from your Groww account.' : 'Connect with your Groww API key and authenticator TOTP.'}
+          status={growwStatus}
+          disconnecting={disconnecting === 'groww'}
+          onConnect={() => setModal('groww')}
+          onDisconnect={() => handleDisconnect('groww', '/api/groww/disconnect')}
+        />
+
+        <BrokerCard
+          name="HDFC Securities" category="Broker · Bank-Backed"
+          description={hdfcStatus === 'connected' ? 'Live holdings from your HDFC Securities InvestRight account.' : 'Connect with your InvestRight API key and secret from developer.hdfcsec.com.'}
+          status={hdfcStatus}
+          disconnecting={disconnecting === 'hdfc'}
+          onConnect={() => setModal('hdfc')}
+          onDisconnect={() => handleDisconnect('hdfc', '/api/hdfc/disconnect')}
+        />
+
+        <BrokerCard
+          name="Motilal Oswal" category="Broker · Full-Service"
+          description={motilaStatus === 'connected' ? 'Live holdings from your Motilal Oswal moAPI account. Token refreshes daily.' : 'Connect with your moAPI password and TOTP. Token expires at 6 AM IST daily.'}
+          status={motilaStatus}
+          disconnecting={disconnecting === 'motilal'}
+          onConnect={() => setModal('motilal')}
+          onDisconnect={() => handleDisconnect('motilal', '/api/motilal/disconnect')}
+        />
+
+        <CAMSCard />
+
+        {comingSoon.map((b) => (
+          <div key={b.name} className="p-5 rounded-xl bg-surface-container-highest/20 flex items-center justify-between opacity-50">
             <div>
               <p className="text-sm font-black text-on-surface">{b.name}</p>
               <p className="text-[10px] text-outline font-bold uppercase tracking-widest mt-0.5">{b.category}</p>
@@ -349,39 +499,47 @@ function IntegrationsPanel() {
             </span>
           </div>
         ))}
-
-        {/* Others button */}
-        <div className="col-span-full">
-          <button
-            onClick={() => setShowOthers(!showOthers)}
-            className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-outline hover:text-on-surface transition-colors"
-          >
-            <span className="material-symbols-outlined text-sm">{showOthers ? 'expand_less' : 'expand_more'}</span>
-            {showOthers ? 'Hide' : 'Show'} Other Brokers &amp; Platforms
-          </button>
-        </div>
-
-        <AnimatePresence>
-          {showOthers && otherBrokers.map((b, i) => (
-            <motion.div
-              key={b.name}
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ delay: i * 0.04 }}
-              className="p-5 rounded-xl bg-surface-container-highest/10 flex items-center justify-between opacity-50"
-            >
-              <div>
-                <p className="text-sm font-black text-on-surface">{b.name}</p>
-                <p className="text-[10px] text-outline font-bold uppercase tracking-widest mt-0.5">{b.category}</p>
-              </div>
-              <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-outline/10 text-outline">
-                Coming Soon
-              </span>
-            </motion.div>
-          ))}
-        </AnimatePresence>
       </div>
+
+      {/* Credential modals */}
+      <AnimatePresence>
+        {modal === 'groww' && (
+          <CredentialModal
+            title="Groww" category="Broker · Stocks & MF"
+            endpoint="/api/groww/connect"
+            fields={[
+              { key: 'api_key', label: 'API Key', placeholder: 'From groww.in/trade-api/api-keys', hint: 'Requires ₹499/month Groww API subscription' },
+              { key: 'totp', label: 'TOTP (6-digit)', placeholder: '123456', type: 'text', hint: 'From the authenticator app you linked when generating the API key' },
+            ]}
+            onSuccess={() => { setModal(null); setGrowwStatus('connected'); refresh(); }}
+            onClose={() => setModal(null)}
+          />
+        )}
+        {modal === 'hdfc' && (
+          <CredentialModal
+            title="HDFC Securities" category="Broker · Bank-Backed"
+            endpoint="/api/hdfc/connect"
+            fields={[
+              { key: 'api_key', label: 'API Key', placeholder: 'From developer.hdfcsec.com' },
+              { key: 'api_secret', label: 'API Secret', placeholder: 'From developer.hdfcsec.com', type: 'password' },
+            ]}
+            onSuccess={() => { setModal(null); setHdfcStatus('connected'); refresh(); }}
+            onClose={() => setModal(null)}
+          />
+        )}
+        {modal === 'motilal' && (
+          <CredentialModal
+            title="Motilal Oswal" category="Broker · Full-Service"
+            endpoint="/api/motilal/connect"
+            fields={[
+              { key: 'password', label: 'Trading Password', placeholder: 'Your moAPI login password', type: 'password' },
+              { key: 'totp', label: 'TOTP (6-digit)', placeholder: '123456', hint: 'From your linked authenticator app. Token expires at 6 AM IST daily.' },
+            ]}
+            onSuccess={() => { setModal(null); setMotilaStatus('connected'); refresh(); }}
+            onClose={() => setModal(null)}
+          />
+        )}
+      </AnimatePresence>
     </Card>
   );
 }
