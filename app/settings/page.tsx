@@ -317,6 +317,7 @@ function CAMSCard() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
   const [result, setResult] = useState('');
+  const [password, setPassword] = useState('');
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -326,6 +327,7 @@ function CAMSCard() {
     setResult('');
     const form = new FormData();
     form.append('file', file);
+    if (password.trim()) form.append('password', password.trim());
     try {
       const res = await fetch('/api/cams/parse', { method: 'POST', body: form });
       const data = await res.json();
@@ -354,6 +356,19 @@ function CAMSCard() {
       <p className="text-[10px] text-outline leading-relaxed">
         Download your CAS PDF from <span className="text-[#adc6ff] font-bold">mfcentral.com → Statements → CAS</span> and upload it here to import all your mutual fund holdings.
       </p>
+      <div className="flex flex-col gap-1">
+        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">
+          PDF Password <span className="normal-case text-outline/60 tracking-normal font-normal">(your PAN — e.g. ABCDE1234F)</span>
+        </label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Enter PAN or PDF password"
+          autoCapitalize="characters"
+          className="w-full h-9 px-3 rounded-lg bg-surface-container-low border border-outline-variant/40 text-[11px] text-on-surface placeholder:text-outline/50 focus:outline-none focus:border-primary/60 transition-colors font-mono"
+        />
+      </div>
       {result && (
         <p className={cn('text-[10px] font-semibold', status === 'error' ? 'text-[#ffb2b7]' : 'text-[#4edea3]')}>{result}</p>
       )}

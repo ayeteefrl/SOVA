@@ -1,6 +1,5 @@
-// CAMS CAS PDF parser route
-// User downloads their CAS PDF from mfcentral.com → Statements → Consolidated Account Statement
-// then uploads it here. The server parses the PDF text and returns structured holdings.
+// CAMS CAS import route — forwards PDF to CASParser API (casparser.in)
+// User downloads CAS PDF from mfcentral.com → Statements → CAS, enters their PAN as password
 
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
@@ -23,8 +22,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'File too large. Max 10 MB.' }, { status: 413 });
   }
 
+  const password = (formData.get('password') as string | null) ?? undefined;
   const buffer = await file.arrayBuffer();
-  const result = await parseCASPDF(buffer);
+  const result = await parseCASPDF(buffer, password);
 
   if (result.holdings.length === 0) {
     return NextResponse.json({
