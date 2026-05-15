@@ -418,6 +418,15 @@ async function fetchAllSources(): Promise<{
     }
   };
 
+  const fetchCamsMF = async (): Promise<Holding[]> => {
+    try {
+      const res = await fetch('/api/holdings/mf');
+      return res.ok ? ((await res.json()).holdings ?? []) : [];
+    } catch {
+      return [];
+    }
+  };
+
   const fetchBroker = async (path: string, source: string) => {
     try {
       const res = await fetch(path);
@@ -429,10 +438,11 @@ async function fetchAllSources(): Promise<{
     }
   };
 
-  const [z, a, customHoldings, upstox, groww, hdfc, motila] = await Promise.all([
+  const [z, a, customHoldings, camsMF, upstox, groww, hdfc, motila] = await Promise.all([
     fetchZerodha(),
     fetchAngel(),
     fetchCustom(),
+    fetchCamsMF(),
     fetchBroker('/api/upstox/holdings', 'upstox'),
     fetchBroker('/api/groww/holdings', 'groww'),
     fetchBroker('/api/hdfc/holdings', 'hdfc'),
@@ -442,7 +452,11 @@ async function fetchAllSources(): Promise<{
   return {
     zerodhaEquity: z.equity,
     zerodhaConnected: z.connected,
-    mfHoldings: z.mf,
+    // Merge Zerodha MF with CAMS-imported MF (deduplicate by ticker/ISIN)
+    mfHoldings: (() => {
+      const seen = new Set(z.mf.map((h) => h.ticker ?? h.id));
+      return [...z.mf, ...camsMF.filter((h) => !seen.has(h.ticker ?? h.id))];
+    })(),
     customHoldings,
     angelEquity: a.equity,
     angelConnected: a.connected,

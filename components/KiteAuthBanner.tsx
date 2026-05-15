@@ -6,7 +6,7 @@ import { useHoldings } from './HoldingsContext';
 
 export function KiteAuthBanner() {
   const { needsKiteReconnect, needsAngelReconnect } = useHoldings();
-  const [toast, setToast] = useState<'kite' | 'angel' | 'upstox' | null>(null);
+  const [toast, setToast] = useState<'kite' | 'angel' | 'upstox' | 'hdfc' | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -16,6 +16,8 @@ export function KiteAuthBanner() {
       setToast('angel');
     } else if (params.get('upstox_auth') === 'success') {
       setToast('upstox');
+    } else if (params.get('hdfc_auth') === 'success') {
+      setToast('hdfc');
     }
     if ([...params.keys()].some((k) => k.endsWith('_auth'))) {
       window.history.replaceState({}, '', window.location.pathname);
@@ -50,7 +52,7 @@ export function KiteAuthBanner() {
             <div>
               <p className="text-[11px] font-black uppercase tracking-widest text-secondary">Connected</p>
               <p className="text-[10px] text-on-surface-variant">
-                {toast === 'angel' ? 'Angel One live data active' : toast === 'upstox' ? 'Upstox live data active' : 'Zerodha live data active'}
+                {toast === 'angel' ? 'Angel One live data active' : toast === 'upstox' ? 'Upstox live data active' : toast === 'hdfc' ? 'HDFC Securities live data active' : 'Zerodha live data active'}
               </p>
             </div>
           </motion.div>

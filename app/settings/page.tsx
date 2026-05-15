@@ -354,34 +354,58 @@ function CAMSCard() {
         </span>
       </div>
       <p className="text-[10px] text-outline leading-relaxed">
-        Download your CAS PDF from <span className="text-[#adc6ff] font-bold">mfcentral.com → Statements → CAS</span> and upload it here to import all your mutual fund holdings.
+        Import all your mutual fund holdings by uploading your Consolidated Account Statement (CAS) PDF.
       </p>
-      <div className="flex flex-col gap-1">
-        <label className="text-[10px] font-bold text-outline uppercase tracking-widest">
-          PDF Password <span className="normal-case text-outline/60 tracking-normal font-normal">(your PAN — e.g. ABCDE1234F)</span>
-        </label>
+
+      {/* Step 1 — download */}
+      <div className="flex flex-col gap-1.5">
+        <p className="text-[9px] font-black uppercase tracking-widest text-outline/70">Step 1 — Download your CAS</p>
+        <a
+          href="https://www.mfcentral.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full h-9 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+          style={{ background: 'rgba(173,198,255,0.08)', border: '1px solid rgba(173,198,255,0.2)', color: '#adc6ff' }}
+        >
+          <span className="material-symbols-outlined text-sm">open_in_new</span>
+          Open MFCentral → Statements → CAS
+        </a>
+      </div>
+
+      {/* Step 2 — enter PAN */}
+      <div className="flex flex-col gap-1.5">
+        <p className="text-[9px] font-black uppercase tracking-widest text-outline/70">Step 2 — Enter your PAN</p>
+        <p className="text-[9px] text-outline/60">CAMS PDFs are password-protected with your PAN (e.g. ABCDE1234F)</p>
         <input
-          type="password"
+          type="text"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Enter PAN or PDF password"
-          autoCapitalize="characters"
-          className="w-full h-9 px-3 rounded-lg bg-surface-container-low border border-outline-variant/40 text-[11px] text-on-surface placeholder:text-outline/50 focus:outline-none focus:border-primary/60 transition-colors font-mono"
+          onChange={(e) => setPassword(e.target.value.toUpperCase())}
+          placeholder="Your PAN — e.g. ABCDE1234F"
+          maxLength={10}
+          className="w-full h-9 px-3 rounded-lg bg-surface-container-low border border-outline-variant/40 text-[11px] text-on-surface placeholder:text-outline/40 focus:outline-none focus:border-primary/60 transition-colors font-mono uppercase tracking-widest"
         />
       </div>
-      {result && (
-        <p className={cn('text-[10px] font-semibold', status === 'error' ? 'text-[#ffb2b7]' : 'text-[#4edea3]')}>{result}</p>
-      )}
-      <button
-        onClick={() => fileRef.current?.click()}
-        disabled={status === 'uploading'}
-        className="w-full h-10 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 gradient-primary text-on-primary-container shadow-glow hover:scale-[1.01] transition-all disabled:opacity-50"
-      >
-        <span className="material-symbols-outlined text-sm">
-          {status === 'uploading' ? 'hourglass_empty' : 'upload_file'}
-        </span>
-        {status === 'uploading' ? 'Parsing PDF…' : 'Upload CAS PDF'}
-      </button>
+
+      {/* Step 3 — upload */}
+      <div className="flex flex-col gap-1.5">
+        <p className="text-[9px] font-black uppercase tracking-widest text-outline/70">Step 3 — Upload the PDF</p>
+        {result && (
+          <p className={cn('text-[10px] font-semibold', status === 'error' ? 'text-[#ffb2b7]' : 'text-[#4edea3]')}>{result}</p>
+        )}
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={status === 'uploading' || !password.trim()}
+          className="w-full h-10 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 gradient-primary text-on-primary-container shadow-glow hover:scale-[1.01] transition-all disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-sm">
+            {status === 'uploading' ? 'hourglass_empty' : 'upload_file'}
+          </span>
+          {status === 'uploading' ? 'Parsing PDF…' : 'Upload CAS PDF'}
+        </button>
+        {!password.trim() && (
+          <p className="text-[9px] text-outline/50 text-center">Enter your PAN above before uploading</p>
+        )}
+      </div>
       <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={handleFile} />
     </div>
   );
@@ -395,29 +419,40 @@ function IntegrationsPanel() {
   const [kiteStatus, setKiteStatus] = useState<BrokerStatus>('loading');
   const [angelStatus, setAngelStatus] = useState<BrokerStatus>('loading');
   const [upstoxStatus, setUpstoxStatus] = useState<BrokerStatus>('loading');
+  const [hdfcStatus, setHdfcStatus] = useState<BrokerStatus>('loading');
   const [connectingKite, setConnectingKite] = useState(false);
   const [connectingAngel, setConnectingAngel] = useState(false);
   const [connectingUpstox, setConnectingUpstox] = useState(false);
+  const [connectingHdfc, setConnectingHdfc] = useState(false);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
 
   // Credential-modal brokers
   const [growwStatus, setGrowwStatus] = useState<BrokerStatus>('loading');
-  const [hdfcStatus, setHdfcStatus] = useState<BrokerStatus>('loading');
   const [motilaStatus, setMotilaStatus] = useState<BrokerStatus>('loading');
-  const [modal, setModal] = useState<'groww' | 'hdfc' | 'motilal' | null>(null);
+  const [modal, setModal] = useState<'groww' | 'motilal' | null>(null);
 
   useEffect(() => {
-    const check = (url: string, key: string, setter: (s: BrokerStatus) => void) =>
+    const check = (url: string, setter: (s: BrokerStatus) => void) =>
       fetch(url).then((r) => r.json())
         .then((d) => setter(d.connected || d.authenticated ? 'connected' : 'disconnected'))
         .catch(() => setter('disconnected'));
 
-    check('/api/auth/kite/status', 'authenticated', setKiteStatus);
-    check('/api/auth/angel/status', 'authenticated', setAngelStatus);
-    check('/api/upstox/status', 'connected', setUpstoxStatus);
-    check('/api/groww/status', 'connected', setGrowwStatus);
-    check('/api/hdfc/status', 'connected', setHdfcStatus);
-    check('/api/motilal/status', 'connected', setMotilaStatus);
+    check('/api/auth/kite/status', setKiteStatus);
+    check('/api/auth/angel/status', setAngelStatus);
+    check('/api/upstox/status', setUpstoxStatus);
+    check('/api/hdfc/status', setHdfcStatus);
+    check('/api/groww/status', setGrowwStatus);
+    check('/api/motilal/status', setMotilaStatus);
+
+    // Reset any stuck "connecting" spinners when user navigates back to this page
+    const resetConnecting = () => {
+      setConnectingKite(false);
+      setConnectingAngel(false);
+      setConnectingUpstox(false);
+      setConnectingHdfc(false);
+    };
+    window.addEventListener('pageshow', resetConnecting);
+    return () => window.removeEventListener('pageshow', resetConnecting);
   }, []);
 
   async function handleDisconnect(broker: string, url: string, cacheKey?: string) {
@@ -428,8 +463,8 @@ function IntegrationsPanel() {
       if (broker === 'zerodha') setKiteStatus('disconnected');
       else if (broker === 'angel') setAngelStatus('disconnected');
       else if (broker === 'upstox') setUpstoxStatus('disconnected');
-      else if (broker === 'groww') setGrowwStatus('disconnected');
       else if (broker === 'hdfc') setHdfcStatus('disconnected');
+      else if (broker === 'groww') setGrowwStatus('disconnected');
       else if (broker === 'motilal') setMotilaStatus('disconnected');
       refresh();
     } catch {}
@@ -485,10 +520,10 @@ function IntegrationsPanel() {
 
         <BrokerCard
           name="HDFC Securities" category="Broker · Bank-Backed"
-          description={hdfcStatus === 'connected' ? 'Live holdings from your HDFC Securities InvestRight account.' : 'Connect with your InvestRight API key and secret from developer.hdfcsec.com.'}
+          description={hdfcStatus === 'connected' ? 'Live holdings from your HDFC Securities InvestRight account.' : 'Connect your HDFC Securities account via the InvestRight developer portal.'}
           status={hdfcStatus}
-          disconnecting={disconnecting === 'hdfc'}
-          onConnect={() => setModal('hdfc')}
+          connecting={connectingHdfc} disconnecting={disconnecting === 'hdfc'}
+          onConnect={() => { setConnectingHdfc(true); window.location.href = '/api/hdfc/login'; }}
           onDisconnect={() => handleDisconnect('hdfc', '/api/hdfc/disconnect')}
         />
 
@@ -526,18 +561,6 @@ function IntegrationsPanel() {
               { key: 'totp', label: 'TOTP (6-digit)', placeholder: '123456', type: 'text', hint: 'From the authenticator app linked to your Groww trading account' },
             ]}
             onSuccess={() => { setModal(null); setGrowwStatus('connected'); refresh(); }}
-            onClose={() => setModal(null)}
-          />
-        )}
-        {modal === 'hdfc' && (
-          <CredentialModal
-            title="HDFC Securities" category="Broker · Bank-Backed"
-            endpoint="/api/hdfc/connect"
-            fields={[
-              { key: 'api_key', label: 'API Key', placeholder: 'From developer.hdfcsec.com' },
-              { key: 'api_secret', label: 'API Secret', placeholder: 'From developer.hdfcsec.com', type: 'password' },
-            ]}
-            onSuccess={() => { setModal(null); setHdfcStatus('connected'); refresh(); }}
             onClose={() => setModal(null)}
           />
         )}
