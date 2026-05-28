@@ -138,3 +138,25 @@ CREATE TABLE IF NOT EXISTS ppf_rate_cache (
 INSERT INTO ppf_rate_cache (rate, effective_from, source)
 SELECT 7.1, 'Q1 FY2024-25', 'Initial seed'
 WHERE NOT EXISTS (SELECT 1 FROM ppf_rate_cache LIMIT 1);
+
+-- ─── News Article History (date-pickable news archive) ───────────────────────
+-- Captures the live RSS + Massive feed each fetch so past-day tabs can show real
+-- history. `captured_date` is the day the article first appeared; preserved on
+-- conflict (ignoreDuplicates) so an article stays under the day SOVA first saw it.
+CREATE TABLE IF NOT EXISTS news_articles (
+  id            TEXT PRIMARY KEY,
+  headline      TEXT NOT NULL,
+  source        TEXT,
+  category      TEXT,
+  summary       TEXT,
+  url           TEXT,
+  image         TEXT,
+  published_at  TIMESTAMPTZ,
+  sentiment     TEXT DEFAULT 'neutral',
+  tickers       JSONB DEFAULT '[]'::jsonb,
+  captured_date DATE NOT NULL,
+  created_at    TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_news_articles_captured_date
+  ON news_articles (captured_date DESC, published_at DESC);

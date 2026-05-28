@@ -11,6 +11,7 @@ import { SectorBars } from '@/components/charts/SectorBars';
 import { TradeList } from '@/components/TradeList';
 import { useUser } from '@/components/UserContext';
 import { useHoldings } from '@/components/HoldingsContext';
+import { ReconnectPopup } from '@/components/ReconnectPopup';
 import { formatINR, cn } from '@/lib/utils';
 import { computeRebalancePlan, formatRebalanceSuggestion } from '@/lib/rebalance';
 import Link from 'next/link';
@@ -214,35 +215,7 @@ export default function HomePage() {
   return (
     <div className="p-4 md:p-8 space-y-5 md:space-y-8 pb-16 relative">
 
-      <AnimatePresence>
-        {needsKiteReconnect && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="flex items-center justify-between gap-3 px-5 py-3 rounded-xl bg-tertiary/10 ring-1 ring-tertiary/25"
-          >
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-tertiary text-base shrink-0">wifi_off</span>
-              <p className="text-[10px] font-bold text-on-surface-variant">
-                Zerodha is disconnected — showing holdings from cache. Live day P&L unavailable.
-              </p>
-            </div>
-            <a
-              href="/api/auth/kite/login"
-              className="shrink-0 flex items-center gap-1.5 px-4 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all hover:scale-[1.02]"
-              style={{
-                background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)',
-                color: '#001a42',
-                boxShadow: '0 0 16px rgba(173,198,255,0.2)',
-              }}
-            >
-              <span className="material-symbols-outlined text-sm">link</span>
-              Reconnect
-            </a>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ReconnectPopup />
 
       <motion.section
         initial={{ opacity: 0, y: 10 }}

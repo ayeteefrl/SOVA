@@ -977,6 +977,12 @@ export default function SettingsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [showImport, setShowImport] = useState(false);
 
+  // Deep-link support: /settings#integrations opens the matching tab
+  useEffect(() => {
+    const hash = window.location.hash.replace('#', '');
+    if (sections.some((s) => s.id === hash)) setActive(hash);
+  }, []);
+
   const { theme, setTheme, avatarUrl, setAvatar, prefs, setPrefs, savePrefs } = useSettings();
   const { equityHoldings, mutualFundHoldings, etfHoldings } = useHoldings();
   const allHoldings = [...equityHoldings, ...mutualFundHoldings, ...etfHoldings];

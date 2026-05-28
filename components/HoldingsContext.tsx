@@ -454,8 +454,8 @@ async function fetchAllSources(): Promise<{
     zerodhaConnected: z.connected,
     // Merge Zerodha MF with CAMS-imported MF (deduplicate by ticker/ISIN)
     mfHoldings: (() => {
-      const seen = new Set(z.mf.map((h) => h.ticker ?? h.id));
-      return [...z.mf, ...camsMF.filter((h) => !seen.has(h.ticker ?? h.id))];
+      const seen = new Set((z.mf as Holding[]).map((h) => h.ticker ?? h.id));
+      return [...(z.mf as Holding[]), ...camsMF.filter((h) => !seen.has(h.ticker ?? h.id))];
     })(),
     customHoldings,
     angelEquity: a.equity,

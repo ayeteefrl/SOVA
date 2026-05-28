@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
@@ -20,6 +20,7 @@ type Article = {
   tickers: string[];
   time: string;
   url?: string;
+  image?: string;
   publishedAt?: string;
 };
 
@@ -59,15 +60,6 @@ function buildDateTabs() {
   return tabs;
 }
 
-function isSameDate(publishedAt: string | undefined, targetDate: string): boolean {
-  if (!publishedAt) return false;
-  try {
-    return new Date(publishedAt).toISOString().split('T')[0] === targetDate;
-  } catch {
-    return false;
-  }
-}
-
 /* ─── Sub-components ─────────────────────────────────────────── */
 function SentimentChip({ s }: { s: Article['sentiment'] }) {
   if (s === 'bullish') return <Chip variant="positive">Bullish</Chip>;
@@ -104,34 +96,47 @@ export default function NewsPage() {
   const [usingLive, setUsingLive] = useState(false);
   const [cat, setCat] = useState<Cat>('ALL');
   const [dateTab, setDateTab] = useState(0);
-  const [customDate, setCustomDate] = useState('');
   const [newsView, setNewsView] = useState<NewsView>('global');
-  const dateInputRef = useRef<HTMLInputElement>(null);
 
   const dateTabs = buildDateTabs();
   const { equityHoldings } = useHoldings();
 
-  // Build dynamic portfolio tickers from real holdings
-  const portfolioTickers = useMemo(() => {
-    const tickers = equityHoldings
-      .map((h) => h.ticker?.toUpperCase())
-      .filter(Boolean) as string[];
-    // Fallback known names if no Zerodha holdings yet
-    return tickers.length > 0
-      ? tickers
-      : ['RELIANCE', 'HDFCBANK', 'TCS', 'INFY', 'ICICIBANK', 'BAJFINANCE'];
+  const activeDateStr = dateTabs[dateTab]?.date ?? dateTabs[0].date;
+  const isToday = dateTab === 0;
+
+  // Build portfolio match terms from real holdings — tickers AND names.
+  const portfolioTerms = useMemo(() => {
+    const terms = new Set<string>();
+    for (const h of equityHoldings) {
+      if (h.ticker) terms.add(h.ticker.toUpperCase());
+      if (h.name) terms.add(h.name.toUpperCase());
+    }
+    return [...terms];
   }, [equityHoldings]);
 
-  const fetchNews = useCallback(async (cancelled = { value: false }) => {
+  // Short, human labels for the "filtering for" line — prefer tickers.
+  const portfolioLabels = useMemo(() => {
+    const labels = equityHoldings
+      .map((h) => h.ticker?.toUpperCase() || h.name?.toUpperCase())
+      .filter(Boolean) as string[];
+    return [...new Set(labels)];
+  }, [equityHoldings]);
+
+  const fetchNews = useCallback(async (date: string, today: boolean, cancelled = { value: false }) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/news');
+      const res = await fetch(today ? '/api/news' : `/api/news?date=${date}`);
       const data = await res.json();
       if (cancelled.value) return;
       if (data.articles?.length) {
         setArticles(data.articles);
         setUsingLive(true);
-      } else throw new Error('empty');
+      } else {
+        // Past date with no stored history → show empty, not mock.
+        if (today) throw new Error('empty');
+        setArticles([]);
+        setUsingLive(true);
+      }
     } catch {
       if (!cancelled.value) {
         const shaped: Article[] = mockNews.map((n) => ({
@@ -150,30 +155,28 @@ export default function NewsPage() {
 
   useEffect(() => {
     const cancelled = { value: false };
-    fetchNews(cancelled);
-    const interval = setInterval(() => fetchNews(cancelled), 5 * 60 * 1000);
-    return () => { cancelled.value = true; clearInterval(interval); };
-  }, [fetchNews]);
-
-  // Determine which date string we're filtering on
-  const activeDateStr = customDate || dateTabs[dateTab]?.date || dateTabs[0].date;
+    fetchNews(activeDateStr, isToday, cancelled);
+    // Only the live (today) view auto-refreshes.
+    const interval = isToday
+      ? setInterval(() => fetchNews(activeDateStr, true, cancelled), 5 * 60 * 1000)
+      : undefined;
+    return () => { cancelled.value = true; if (interval) clearInterval(interval); };
+  }, [fetchNews, activeDateStr, isToday]);
 
   const filtered = useMemo(() => {
     let result = articles;
-
-    // Date filter — today (dateTab === 0 and no custom date) shows all
-    if (dateTab > 0 || customDate) {
-      result = result.filter((a) => isSameDate(a.publishedAt, activeDateStr));
-    }
 
     // View filter
     if (newsView === 'regional') {
       result = result.filter((a) => INDIAN_SOURCES.includes(a.source));
     } else if (newsView === 'portfolio') {
-      result = result.filter((a) =>
-        a.tickers.some((t) => portfolioTickers.includes(t)) ||
-        portfolioTickers.some((pt) => a.headline.includes(pt) || a.summary.includes(pt)),
-      );
+      result = result.filter((a) => {
+        const haystack = (a.headline + ' ' + a.summary).toUpperCase();
+        return (
+          a.tickers.some((t) => portfolioTerms.includes(t.toUpperCase())) ||
+          portfolioTerms.some((term) => haystack.includes(term))
+        );
+      });
     }
 
     // Category filter
@@ -182,14 +185,9 @@ export default function NewsPage() {
     }
 
     return result;
-  }, [articles, cat, newsView, dateTab, customDate, activeDateStr, portfolioTickers]);
+  }, [articles, cat, newsView, portfolioTerms]);
 
   const [featured, ...rest] = filtered;
-
-  function handleCustomDate(val: string) {
-    setCustomDate(val);
-    setDateTab(-1); // deselect standard tabs
-  }
 
   return (
     <div className="p-4 md:p-8 space-y-5 md:space-y-6 pb-16">
@@ -227,23 +225,23 @@ export default function NewsPage() {
               {loading ? 'Fetching…' : usingLive ? 'Live · auto-refreshes every 5m' : 'Demo data'}
             </p>
             {!loading && (
-              <button onClick={() => fetchNews()} className="text-outline hover:text-primary-fixed-dim transition-colors ml-1 shrink-0" title="Refresh">
+              <button onClick={() => fetchNews(activeDateStr, isToday)} className="text-outline hover:text-primary-fixed-dim transition-colors ml-1 shrink-0" title="Refresh">
                 <span className="material-symbols-outlined text-sm">refresh</span>
               </button>
             )}
           </div>
         </div>
 
-        {/* Row 2: Date tabs + calendar picker */}
+        {/* Row 2: Date tabs (7-day history) */}
         <div className="flex items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' } as React.CSSProperties}>
           <span className="text-[9px] font-black uppercase tracking-widest text-outline shrink-0">Date:</span>
           {dateTabs.map((tab, i) => (
             <button
               key={tab.date}
-              onClick={() => { setDateTab(i); setCustomDate(''); }}
+              onClick={() => setDateTab(i)}
               className={cn(
                 'px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest whitespace-nowrap shrink-0 transition-all',
-                dateTab === i && !customDate
+                dateTab === i
                   ? 'bg-primary/15 text-primary-fixed-dim ring-1 ring-primary/30'
                   : 'bg-surface-container-highest/30 text-outline hover:text-on-surface',
               )}
@@ -251,34 +249,6 @@ export default function NewsPage() {
               {tab.label}
             </button>
           ))}
-
-          {/* Calendar picker */}
-          <div className="relative shrink-0 ml-1">
-            <button
-              onClick={() => dateInputRef.current?.showPicker?.()}
-              className={cn(
-                'px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all',
-                customDate
-                  ? 'bg-gold/15 text-gold ring-1 ring-gold/30'
-                  : 'bg-surface-container-highest/30 text-outline hover:text-on-surface',
-              )}
-            >
-              <span className="material-symbols-outlined text-xs">calendar_month</span>
-              {customDate ? new Date(customDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Pick Date'}
-            </button>
-            <input
-              ref={dateInputRef}
-              type="date"
-              value={customDate}
-              max={dateTabs[0].date}
-              onChange={(e) => handleCustomDate(e.target.value)}
-              className="absolute inset-0 opacity-0 cursor-pointer w-full"
-              style={{ pointerEvents: 'none' }}
-            />
-          </div>
-          {customDate && (
-            <button onClick={() => { setCustomDate(''); setDateTab(0); }} className="text-[9px] font-black uppercase tracking-widest text-outline hover:text-tertiary transition-colors shrink-0">✕ Clear</button>
-          )}
         </div>
 
         {/* Row 3: Category filters */}
@@ -311,7 +281,9 @@ export default function NewsPage() {
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-gold">Portfolio Intelligence</p>
             <p className="text-[10px] text-on-surface-variant mt-0.5">
-              Filtering news for: {portfolioTickers.slice(0, 6).join(', ')}{portfolioTickers.length > 6 ? ' and more' : ''}.
+              {portfolioLabels.length > 0
+                ? <>Filtering news for: {portfolioLabels.slice(0, 6).join(', ')}{portfolioLabels.length > 6 ? ' and more' : ''}.</>
+                : 'Filtering news for your portfolio. Connect a broker or import holdings to personalise this feed.'}
             </p>
           </div>
         </motion.div>
@@ -354,17 +326,17 @@ export default function NewsPage() {
             {newsView === 'portfolio' ? 'account_balance_wallet' : 'article'}
           </span>
           <p className="text-[11px] font-bold uppercase tracking-widest text-outline mt-4">
-            {(dateTab > 0 || customDate)
-              ? `No articles found for ${customDate ? new Date(customDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long' }) : dateTabs[dateTab]?.label ?? 'this date'}`
+            {!isToday
+              ? `No articles found for ${dateTabs[dateTab]?.label ?? 'this date'}`
               : newsView === 'portfolio' ? 'No portfolio news for this filter' : 'No articles in this category'}
           </p>
-          {(dateTab > 0 || customDate) && (
+          {!isToday && (
             <p className="text-[10px] text-outline/70 mt-2 max-w-xs mx-auto">
-              RSS feeds only carry recent articles — past dates may have no coverage.
+              History starts the day SOVA first captured news — earlier dates may have no coverage.
             </p>
           )}
           <button
-            onClick={() => { setDateTab(0); setCustomDate(''); setCat('ALL'); }}
+            onClick={() => { setDateTab(0); setCat('ALL'); }}
             className="mt-4 text-[9px] font-black uppercase tracking-widest text-primary-fixed-dim hover:underline"
           >
             Reset to Today
@@ -376,7 +348,7 @@ export default function NewsPage() {
       <AnimatePresence mode="wait">
         {!loading && featured && (
           <motion.div
-            key={`${featured.id}-${dateTab}-${newsView}-${customDate}`}
+            key={`${featured.id}-${dateTab}-${newsView}`}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
@@ -419,15 +391,29 @@ export default function NewsPage() {
                     </div>
                   </div>
                   <div className="hidden lg:flex items-center justify-center">
-                    <div className="relative w-56 h-56">
-                      <div className="absolute inset-0 rounded-full border border-outline-variant/20 animate-pulse_glow" />
-                      <div className="absolute inset-4 rounded-full border border-outline-variant/20" />
-                      <div className="absolute inset-8 rounded-full bg-gradient-to-br from-primary/20 to-gold/10 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-6xl text-primary-fixed-dim">
-                          {catIcon(featured.category)}
-                        </span>
+                    {featured.image ? (
+                      <div className="relative w-full h-56 rounded-2xl overflow-hidden ring-1 ring-outline-variant/15">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={featured.image}
+                          alt=""
+                          loading="lazy"
+                          className="w-full h-full object-cover"
+                          onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-tr from-surface/40 to-transparent pointer-events-none" />
                       </div>
-                    </div>
+                    ) : (
+                      <div className="relative w-56 h-56">
+                        <div className="absolute inset-0 rounded-full border border-outline-variant/20 animate-pulse_glow" />
+                        <div className="absolute inset-4 rounded-full border border-outline-variant/20" />
+                        <div className="absolute inset-8 rounded-full bg-gradient-to-br from-primary/20 to-gold/10 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-6xl text-primary-fixed-dim">
+                            {catIcon(featured.category)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -447,9 +433,11 @@ export default function NewsPage() {
               : 'Latest Intelligence'
             }
             subtitle={
-              usingLive
+              !isToday
+                ? `${rest.length} articles from ${dateTabs[dateTab]?.label ?? ''}`
+                : usingLive
                 ? `${rest.length} live articles · auto-refreshes every 5m`
-                : `Demo articles · ${customDate ? new Date(customDate + 'T00:00:00').toLocaleDateString('en-IN') : dateTabs[dateTab]?.label ?? ''}`
+                : `Demo articles · ${dateTabs[dateTab]?.label ?? ''}`
             }
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -463,6 +451,18 @@ export default function NewsPage() {
               >
                 <a href={n.url ?? '#'} target={n.url ? '_blank' : '_self'} rel="noreferrer" className="block h-full">
                   <Card tier="low" animate={false} className="p-6 hover:-translate-y-1 transition-transform cursor-pointer group h-full">
+                    {n.image && (
+                      <div className="-mx-6 -mt-6 mb-4 h-40 overflow-hidden rounded-t-xl">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={n.image}
+                          alt=""
+                          loading="lazy"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 mb-3 flex-wrap">
                       <Chip variant="primary">{n.category}</Chip>
                       <SentimentChip s={n.sentiment} />

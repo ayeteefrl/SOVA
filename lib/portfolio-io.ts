@@ -236,7 +236,7 @@ export async function parseXLSX(file: File): Promise<ImportResult> {
   return parseCSV(csv);
 }
 
-// Detect columns from an XLSX without fully parsing rows
+// Detect columns from an XLSX without fully parsing rows (first sheet only)
 export async function detectXLSX(file: File): Promise<DetectResult> {
   const XLSX = await import('xlsx');
   const buffer = await file.arrayBuffer();
@@ -244,6 +244,75 @@ export async function detectXLSX(file: File): Promise<DetectResult> {
   const ws = wb.Sheets[wb.SheetNames[0]];
   const csv = XLSX.utils.sheet_to_csv(ws);
   return detectTextFile(csv);
+}
+
+// ── MULTI-SHEET XLSX DETECTION ────────────────────────────────────────────────
+
+export interface SheetDetect extends DetectResult {
+  name: string;     // sheet (tab) name
+  rowCount: number; // number of data rows below the header
+}
+
+// Find the row that most looks like a header by scoring against known aliases.
+// Handles spreadsheets that have title/metadata rows above the real table.
+function findHeaderRow(aoa: unknown[][]): number {
+  const allAliases = Object.values(ALIASES).flat().map(normalizeHeader);
+  const maxScan = Math.min(aoa.length, 15);
+  let best = 0;
+  let bestScore = -1;
+  for (let i = 0; i < maxScan; i++) {
+    const cells = (aoa[i] ?? []).map((c) => normalizeHeader(String(c ?? '')));
+    const nonEmpty = cells.filter((c) => c).length;
+    if (nonEmpty < 2) continue;
+    let score = 0;
+    for (const c of cells) {
+      if (c && allAliases.some((a) => c === a || c.includes(a) || a.includes(c))) score++;
+    }
+    if (score > bestScore) { bestScore = score; best = i; }
+  }
+  return best;
+}
+
+function aoaToSheetDetect(name: string, aoa: unknown[][]): SheetDetect {
+  const nonEmptyRows = aoa.filter(
+    (r) => Array.isArray(r) && r.some((c) => String(c ?? '').trim() !== ''),
+  );
+  if (nonEmptyRows.length === 0) {
+    return { name, separator: '\t', headers: [], columnMap: emptyMap(), rawLines: [], rowCount: 0 };
+  }
+  const headerIdx = findHeaderRow(nonEmptyRows);
+  const headers = (nonEmptyRows[headerIdx] ?? []).map((c) => String(c ?? '').trim());
+  const dataRows = nonEmptyRows.slice(headerIdx); // header is line 0 for the parser
+  const rawLines = dataRows.map((r) =>
+    (r as unknown[]).map((c) => String(c ?? '').replace(/\t/g, ' ').trim()).join('\t'),
+  );
+  return {
+    name,
+    separator: '\t',
+    headers,
+    columnMap: autoDetectColumns(headers),
+    rawLines,
+    rowCount: Math.max(0, dataRows.length - 1),
+  };
+}
+
+// Detect every sheet in a workbook so the user can pick which to import.
+export async function detectXLSXAllSheets(file: File): Promise<SheetDetect[]> {
+  const XLSX = await import('xlsx');
+  const buffer = await file.arrayBuffer();
+  const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+  return wb.SheetNames
+    .map((name) => {
+      const ws = wb.Sheets[name];
+      const aoa = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: false, defval: '' });
+      return aoaToSheetDetect(name, aoa);
+    })
+    .filter((s) => s.headers.length > 0 && s.rowCount > 0);
+}
+
+// Wrap a single-table detection (CSV / PDF) as a one-element sheet list.
+export function wrapSingleSheet(name: string, d: DetectResult): SheetDetect {
+  return { ...d, name, rowCount: Math.max(0, d.rawLines.length - 1) };
 }
 
 // ── PDF IMPORT ────────────────────────────────────────────────────────────────
