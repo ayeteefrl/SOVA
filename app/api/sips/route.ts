@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { fund_name, fund_code, amount, debit_date, start_date } = body;
+  const { fund_name, fund_code, amount, debit_date, start_date, lump_sum } = body;
 
   if (!fund_name || !amount) {
     return NextResponse.json({ error: 'fund_name and amount are required' }, { status: 400 });
@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
       amount: Number(amount),
       debit_date: debit_date ?? null,
       start_date: start_date ?? null,
+      lump_sum: Number(lump_sum ?? 0),
       status: 'active',
       total_invested: 0,
       current_value: 0,

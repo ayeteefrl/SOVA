@@ -10,9 +10,129 @@ import { formatINR, cn } from '@/lib/utils';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
+import { createPortal } from 'react-dom';
 
 const MATURITY_YEAR = 2033;
 const MAX_ANNUAL = 150000;
+
+/* ── Shared style helpers ─────────────────────────────────────────── */
+const inputCls = 'w-full rounded-lg px-4 py-3 text-sm text-[#dde2f8] placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50 transition-all';
+const inputStyle = { background: '#1a2035', border: '1px solid #2f3445' };
+const labelCls = 'block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2';
+
+/* ── Edit Contribution Modal ──────────────────────────────────────── */
+function EditContributionModal({
+  contribution,
+  ppfRate,
+  prevBalance,
+  onClose,
+  onSave,
+}: {
+  contribution: { id: string; deposit_date: string; amount: number; fy: string };
+  ppfRate: number;
+  prevBalance: number;
+  onClose: () => void;
+  onSave: (id: string, date: string, amount: number) => void;
+}) {
+  const [date, setDate] = useState(contribution.deposit_date);
+  const [amount, setAmount] = useState(String(contribution.amount));
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const amt = Number(amount) || 0;
+  const interest = Math.round((prevBalance + amt) * (ppfRate / 100));
+  const closing = prevBalance + amt + interest;
+
+  function submit() {
+    if (!date || !amount || amt <= 0 || amt > 150000) return;
+    onSave(contribution.id, date, amt);
+    onClose();
+  }
+
+  const modal = (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-[#080e1d]/75 backdrop-blur-xl" />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 20 }}
+        transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-md bg-[#0f1526] rounded-2xl overflow-hidden shadow-[0_32px_80px_-12px_rgba(0,0,0,0.8)]"
+        style={{ border: '1px solid rgba(66,71,84,0.4)' }}
+      >
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#D4AF3730] to-transparent" />
+
+        <div className="flex items-center justify-between px-8 py-6 border-b border-[#2f3445]/60">
+          <div>
+            <h2 className="text-xl font-black tracking-tight text-[#dde2f8] flex items-center gap-2.5">
+              <span className="material-symbols-outlined text-[#D4AF37] text-xl">edit</span>
+              Edit Contribution
+            </h2>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#8c909f] mt-0.5">
+              {contribution.fy} · Interest recalculated at {ppfRate}%
+            </p>
+          </div>
+          <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[#2f3445]/60 text-[#8c909f] hover:text-[#dde2f8] transition-colors">
+            <span className="material-symbols-outlined text-xl">close</span>
+          </button>
+        </div>
+
+        <div className="p-8 space-y-5">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>Deposit Date</label>
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                className={inputCls + ' [color-scheme:dark]'} style={inputStyle} />
+            </div>
+            <div>
+              <label className={labelCls}>Amount (₹, max 1,50,000)</label>
+              <input type="number" max={150000} value={amount} onChange={(e) => setAmount(e.target.value)}
+                className={inputCls} style={inputStyle} />
+            </div>
+          </div>
+
+          {amt > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 rounded-xl grid grid-cols-3 gap-3"
+              style={{ background: '#1a2035', border: '1px solid #2f3445' }}
+            >
+              {[
+                { label: 'Deposit', value: `₹${amt.toLocaleString('en-IN')}`, color: '#dde2f8' },
+                { label: `Interest (${ppfRate}%)`, value: `+₹${interest.toLocaleString('en-IN')}`, color: '#4edea3' },
+                { label: 'Closing Balance', value: `₹${closing.toLocaleString('en-IN')}`, color: '#adc6ff' },
+              ].map((item) => (
+                <div key={item.label} className="text-center">
+                  <p className="text-[8px] font-black uppercase tracking-widest text-[#8c909f]">{item.label}</p>
+                  <p className="text-[11px] font-black mt-0.5" style={{ color: item.color }}>{item.value}</p>
+                </div>
+              ))}
+            </motion.div>
+          )}
+
+          <div className="flex gap-3 pt-1">
+            <button onClick={onClose}
+              className="flex-1 h-12 rounded-lg text-[10px] font-black uppercase tracking-widest text-[#8c909f] hover:text-[#dde2f8] transition-colors"
+              style={{ background: '#1e2538', border: '1px solid #2f3445' }}>
+              Cancel
+            </button>
+            <button onClick={submit} disabled={!date || amt <= 0 || amt > 150000}
+              className="flex-1 h-12 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:scale-[1.01] disabled:opacity-40 disabled:pointer-events-none"
+              style={{ background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)', color: '#001a42', boxShadow: '0 0 24px rgba(173,198,255,0.25)' }}>
+              <span className="material-symbols-outlined text-sm">check</span>
+              Save Changes
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+
+  if (!mounted) return null;
+  return createPortal(modal, document.body);
+}
 
 type Contribution = {
   id: string;
@@ -51,10 +171,9 @@ export default function PPFPage() {
   const [loading, setLoading] = useState(true);
   const [ppfRate, setPpfRate] = useState(7.1);
   const [rateSource, setRateSource] = useState('');
-  const [editId, setEditId] = useState<string | null>(null);
+  const [editingContribution, setEditingContribution] = useState<Contribution | null>(null);
   const [addingNew, setAddingNew] = useState(false);
   const [newEntry, setNewEntry] = useState({ date: '', amount: '' });
-  const [draftAmount, setDraftAmount] = useState('');
 
   const fetchData = useCallback(async () => {
     const [contribRes, rateRes] = await Promise.all([
@@ -92,17 +211,13 @@ export default function PPFPage() {
   const projectedMaturity = chartData[chartData.length - 1]?.corpus ?? 0;
   const yearsLeft = MATURITY_YEAR - new Date().getFullYear();
 
-  async function saveEdit(id: string) {
-    const c = contributions.find((x) => x.id === id)!;
-    const amt = Number(draftAmount) || c.amount;
+  async function saveEdit(id: string, date: string, amt: number) {
     await fetch(`/api/ppf/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount: amt, interest_rate: ppfRate }),
+      body: JSON.stringify({ amount: amt, deposit_date: date, interest_rate: ppfRate }),
     });
-    setContributions((prev) => prev.map((x) => x.id === id ? { ...x, amount: amt } : x));
-    setEditId(null);
-    setDraftAmount('');
+    setContributions((prev) => prev.map((x) => x.id === id ? { ...x, amount: amt, deposit_date: date } : x));
   }
 
   async function deleteContribution(id: string) {
@@ -303,40 +418,19 @@ export default function PPFPage() {
                   </div>
                   {displayContributions.map((c) => (
                     <motion.div key={c.id} layout className="rounded-lg overflow-hidden">
-                      <div className={cn(
-                        'grid grid-cols-[1fr_1fr_1fr_1fr_1fr_56px] gap-3 px-4 py-3 items-center rounded-lg transition-colors',
-                        editId === c.id ? 'bg-surface-container-high/50 ring-1 ring-outline-variant/20' : 'hover:bg-surface-container-highest/20',
-                      )}>
+                      <div className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_56px] gap-3 px-4 py-3 items-center rounded-lg transition-colors hover:bg-surface-container-highest/20">
                         <p className="text-[10px] font-bold text-outline">{c.fy}</p>
                         <p className="text-[10px] text-on-surface-variant">{c.deposit_date}</p>
-                        {editId === c.id ? (
-                          <input type="number" value={draftAmount} onChange={(e) => setDraftAmount(e.target.value)}
-                            className="bg-surface-container-highest/40 rounded px-2 py-1 text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-primary-container w-full" autoFocus />
-                        ) : (
-                          <p className="text-xs font-bold text-on-surface">{formatINR(c.amount)}</p>
-                        )}
+                        <p className="text-xs font-bold text-on-surface">{formatINR(c.amount)}</p>
                         <p className="text-xs font-bold text-secondary">+{formatINR(c.interest_for_year)}</p>
                         <p className="text-xs font-black text-on-surface">{formatINR(c.closing_balance)}</p>
                         <div className="flex gap-1 justify-end">
-                          {editId === c.id ? (
-                            <>
-                              <button onClick={() => saveEdit(c.id)} className="text-secondary hover:opacity-80">
-                                <span className="material-symbols-outlined text-sm">check</span>
-                              </button>
-                              <button onClick={() => { setEditId(null); setDraftAmount(''); }} className="text-outline hover:text-on-surface">
-                                <span className="material-symbols-outlined text-sm">close</span>
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button onClick={() => { setEditId(c.id); setDraftAmount(String(c.amount)); }} className="text-outline hover:text-primary-fixed-dim transition-colors">
-                                <span className="material-symbols-outlined text-sm">edit</span>
-                              </button>
-                              <button onClick={() => deleteContribution(c.id)} className="text-outline hover:text-tertiary transition-colors">
-                                <span className="material-symbols-outlined text-sm">delete_outline</span>
-                              </button>
-                            </>
-                          )}
+                          <button onClick={() => setEditingContribution(c)} className="text-outline hover:text-primary-fixed-dim transition-colors">
+                            <span className="material-symbols-outlined text-sm">edit</span>
+                          </button>
+                          <button onClick={() => deleteContribution(c.id)} className="text-outline hover:text-tertiary transition-colors">
+                            <span className="material-symbols-outlined text-sm">delete_outline</span>
+                          </button>
                         </div>
                       </div>
                     </motion.div>
@@ -353,6 +447,22 @@ export default function PPFPage() {
             </Card>
           </>
         )}
+
+      {/* Edit Contribution Modal */}
+      <AnimatePresence>
+        {editingContribution && (
+          <EditContributionModal
+            contribution={editingContribution}
+            ppfRate={ppfRate}
+            prevBalance={(() => {
+              const idx = displayContributions.findIndex((c) => c.id === editingContribution.id);
+              return idx > 0 ? displayContributions[idx - 1].closing_balance : 0;
+            })()}
+            onClose={() => setEditingContribution(null)}
+            onSave={saveEdit}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

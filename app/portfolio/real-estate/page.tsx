@@ -8,6 +8,7 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Chip } from '@/components/ui/Chip';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatINR, cn } from '@/lib/utils';
+import { createPortal } from 'react-dom';
 
 
 type Property = {
@@ -71,6 +72,158 @@ function PropertyGraphic({ type, color }: { type: string; color: string }) {
   );
 }
 
+/* ── Shared style helpers ─────────────────────────────────────────── */
+const inputCls = 'w-full rounded-lg px-4 py-3 text-sm text-[#dde2f8] placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50 transition-all';
+const inputStyle = { background: '#1a2035', border: '1px solid #2f3445' };
+const labelCls = 'block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2';
+
+/* ── Edit Property Modal ─────────────────────────────────────────── */
+function EditPropertyModal({
+  property,
+  onClose,
+  onSave,
+}: {
+  property: Property;
+  onClose: () => void;
+  onSave: (id: string, updates: Partial<Property>) => void;
+}) {
+  const [form, setForm] = useState({
+    name: property.name,
+    property_type: property.property_type,
+    location: property.location ?? '',
+    purchase_price: String(property.purchase_price),
+    current_value: String(property.current_value),
+    rental_yield: String(property.rental_yield),
+    area: property.area ? String(property.area) : '',
+    area_unit: property.area_unit ?? 'sqft',
+    purchase_date: property.purchase_date ?? '',
+    emi: String(property.emi),
+    loan_outstanding: String(property.loan_outstanding),
+    tenant_name: property.tenant_name ?? '',
+    lease_expiry: property.lease_expiry ?? '',
+    floors: property.floors ?? '',
+    facing: property.facing ?? '',
+  });
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const fields: { key: keyof typeof form; label: string; type?: string; placeholder?: string; full?: boolean; options?: string[] }[] = [
+    { key: 'name', label: 'Property Name *', placeholder: 'e.g. Flat 4B, Prestige Park', full: true },
+    { key: 'property_type', label: 'Type', options: ['Residential', 'Commercial', 'Land', 'Industrial', 'Other'] },
+    { key: 'location', label: 'Location', placeholder: 'e.g. Bandra, Mumbai' },
+    { key: 'purchase_price', label: 'Purchase Price (₹)', type: 'number', placeholder: '7500000' },
+    { key: 'current_value', label: 'Current Value (₹)', type: 'number', placeholder: '9500000' },
+    { key: 'rental_yield', label: 'Rental Yield (%)', type: 'number', placeholder: '3.5' },
+    { key: 'area', label: 'Area', type: 'number', placeholder: '1200' },
+    { key: 'area_unit', label: 'Unit', options: ['sqft', 'sqm', 'acres', 'guntha'] },
+    { key: 'purchase_date', label: 'Purchase Date', type: 'date' },
+    { key: 'emi', label: 'Monthly EMI (₹)', type: 'number', placeholder: '45000' },
+    { key: 'loan_outstanding', label: 'Loan Outstanding (₹)', type: 'number', placeholder: '3500000' },
+    { key: 'tenant_name', label: 'Tenant / Use', placeholder: 'Own use / Tenant name' },
+    { key: 'lease_expiry', label: 'Lease Expiry', placeholder: 'e.g. Dec 2026' },
+    { key: 'floors', label: 'Floor / Location Info', placeholder: '4th Floor, Tower B' },
+    { key: 'facing', label: 'Facing', placeholder: 'North-East' },
+  ];
+
+  function submit() {
+    if (!form.name) return;
+    onSave(property.id, {
+      name: form.name,
+      property_type: form.property_type,
+      location: form.location || undefined,
+      purchase_price: Number(form.purchase_price) || 0,
+      current_value: Number(form.current_value) || 0,
+      rental_yield: Number(form.rental_yield) || 0,
+      area: form.area ? Number(form.area) : undefined,
+      area_unit: form.area_unit,
+      purchase_date: form.purchase_date || undefined,
+      emi: Number(form.emi) || 0,
+      loan_outstanding: Number(form.loan_outstanding) || 0,
+      tenant_name: form.tenant_name || undefined,
+      lease_expiry: form.lease_expiry || undefined,
+      floors: form.floors || undefined,
+      facing: form.facing || undefined,
+    });
+    onClose();
+  }
+
+  const modal = (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-[#080e1d]/75 backdrop-blur-xl" />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 20 }}
+        transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-2xl bg-[#0f1526] rounded-2xl overflow-hidden shadow-[0_32px_80px_-12px_rgba(0,0,0,0.8)]"
+        style={{ border: '1px solid rgba(66,71,84,0.4)' }}
+      >
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#adc6ff30] to-transparent" />
+
+        <div className="flex items-center justify-between px-8 py-6 border-b border-[#2f3445]/60">
+          <div>
+            <h2 className="text-xl font-black tracking-tight text-[#dde2f8] flex items-center gap-2.5">
+              <span className="material-symbols-outlined text-[#adc6ff] text-xl">edit</span>
+              Edit Property
+            </h2>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#8c909f] mt-0.5">{property.name}</p>
+          </div>
+          <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[#2f3445]/60 text-[#8c909f] hover:text-[#dde2f8] transition-colors">
+            <span className="material-symbols-outlined text-xl">close</span>
+          </button>
+        </div>
+
+        <div className="p-8 max-h-[75vh] overflow-y-auto">
+          <div className="grid grid-cols-2 gap-4">
+            {fields.map((f) => (
+              <div key={f.key} className={f.full ? 'col-span-2' : ''}>
+                <label className={labelCls}>{f.label}</label>
+                {f.options ? (
+                  <select
+                    value={form[f.key]}
+                    onChange={(e) => setForm((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                    className={inputCls + ' [color-scheme:dark]'}
+                    style={inputStyle}
+                  >
+                    {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    type={f.type ?? 'text'}
+                    placeholder={f.placeholder}
+                    value={form[f.key]}
+                    onChange={(e) => setForm((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                    className={inputCls + (f.type === 'date' ? ' [color-scheme:dark]' : '')}
+                    style={inputStyle}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-3 mt-6">
+            <button onClick={onClose}
+              className="flex-1 h-12 rounded-lg text-[10px] font-black uppercase tracking-widest text-[#8c909f] hover:text-[#dde2f8] transition-colors"
+              style={{ background: '#1e2538', border: '1px solid #2f3445' }}>
+              Cancel
+            </button>
+            <button onClick={submit} disabled={!form.name}
+              className="flex-1 h-12 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:scale-[1.01] disabled:opacity-40 disabled:pointer-events-none"
+              style={{ background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)', color: '#001a42', boxShadow: '0 0 24px rgba(173,198,255,0.25)' }}>
+              <span className="material-symbols-outlined text-sm">check</span>
+              Save Property
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+
+  if (!mounted) return null;
+  return createPortal(modal, document.body);
+}
+
 function AddPropertyModal({ onClose, onSave }: { onClose: () => void; onSave: (p: Partial<Property>) => void }) {
   const [form, setForm] = useState({
     name: '', property_type: 'Residential', location: '', purchase_price: '',
@@ -119,52 +272,85 @@ function AddPropertyModal({ onClose, onSave }: { onClose: () => void; onSave: (p
     { key: 'facing', label: 'Facing', placeholder: 'North-East' },
   ];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const modal = (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-[#080e1d]/75 backdrop-blur-xl" />
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-surface-container-low rounded-2xl p-8 w-full max-w-2xl shadow-2xl border border-outline-variant/20 max-h-[90vh] overflow-y-auto"
+        initial={{ opacity: 0, scale: 0.94, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 20 }}
+        transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-2xl bg-[#0f1526] rounded-2xl overflow-hidden shadow-[0_32px_80px_-12px_rgba(0,0,0,0.8)]"
+        style={{ border: '1px solid rgba(66,71,84,0.4)' }}
       >
-        <h2 className="text-base font-black text-on-surface mb-6">Add Property</h2>
-        <div className="grid grid-cols-2 gap-4">
-          {fields.map((f) => (
-            <div key={f.key} className={f.full ? 'col-span-2' : ''}>
-              <label className="block text-[9px] font-black uppercase tracking-widest text-outline mb-1.5">{f.label}</label>
-              {f.options ? (
-                <select
-                  value={form[f.key]}
-                  onChange={(e) => setForm((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                  className="w-full bg-surface-container-highest/40 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary-container [color-scheme:dark]"
-                >
-                  {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              ) : (
-                <input
-                  type={f.type ?? 'text'}
-                  placeholder={f.placeholder}
-                  value={form[f.key]}
-                  onChange={(e) => setForm((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                  className="w-full bg-surface-container-highest/40 rounded-xl px-4 py-3 text-sm text-on-surface placeholder:text-outline/50 focus:outline-none focus:ring-1 focus:ring-primary-container [color-scheme:dark]"
-                />
-              )}
-            </div>
-          ))}
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#adc6ff30] to-transparent" />
+
+        <div className="flex items-center justify-between px-8 py-6 border-b border-[#2f3445]/60">
+          <div>
+            <h2 className="text-xl font-black tracking-tight text-[#dde2f8] flex items-center gap-2.5">
+              <span className="material-symbols-outlined text-[#D4AF37] text-xl">apartment</span>
+              Add Property
+            </h2>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#8c909f] mt-0.5">
+              Record a real estate holding
+            </p>
+          </div>
+          <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[#2f3445]/60 text-[#8c909f] hover:text-[#dde2f8] transition-colors">
+            <span className="material-symbols-outlined text-xl">close</span>
+          </button>
         </div>
-        <div className="flex gap-3 mt-6">
-          <button onClick={submit} disabled={!form.name}
-            className="flex-1 h-11 rounded-xl text-[10px] font-black uppercase tracking-widest gradient-primary text-on-primary-container disabled:opacity-40 transition-all">
-            Add Property
-          </button>
-          <button onClick={onClose}
-            className="flex-1 h-11 rounded-xl text-[10px] font-black uppercase tracking-widest bg-surface-container-highest/30 text-outline hover:text-on-surface transition-colors">
-            Cancel
-          </button>
+
+        <div className="p-8 max-h-[75vh] overflow-y-auto">
+          <div className="grid grid-cols-2 gap-4">
+            {fields.map((f) => (
+              <div key={f.key} className={f.full ? 'col-span-2' : ''}>
+                <label className={labelCls}>{f.label}</label>
+                {f.options ? (
+                  <select
+                    value={form[f.key]}
+                    onChange={(e) => setForm((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                    className={'w-full rounded-lg px-4 py-3 text-sm text-[#dde2f8] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50 [color-scheme:dark]'}
+                    style={inputStyle}
+                  >
+                    {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    type={f.type ?? 'text'}
+                    placeholder={f.placeholder}
+                    value={form[f.key]}
+                    onChange={(e) => setForm((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                    className={inputCls + (f.type === 'date' ? ' [color-scheme:dark]' : '')}
+                    style={inputStyle}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-3 mt-6">
+            <button onClick={onClose}
+              className="flex-1 h-12 rounded-lg text-[10px] font-black uppercase tracking-widest text-[#8c909f] hover:text-[#dde2f8] transition-colors"
+              style={{ background: '#1e2538', border: '1px solid #2f3445' }}>
+              Cancel
+            </button>
+            <button onClick={submit} disabled={!form.name}
+              className="flex-1 h-12 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:scale-[1.01] disabled:opacity-40 disabled:pointer-events-none"
+              style={{ background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)', color: '#001a42', boxShadow: '0 0 24px rgba(173,198,255,0.25)' }}>
+              <span className="material-symbols-outlined text-sm">apartment</span>
+              Add Property
+            </button>
+          </div>
         </div>
       </motion.div>
     </div>
   );
+
+  if (!mounted) return null;
+  return createPortal(modal, document.body);
 }
 
 export default function RealEstatePage() {
@@ -172,6 +358,7 @@ export default function RealEstatePage() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingProperty, setEditingProperty] = useState<Property | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const fetchProperties = useCallback(async () => {
@@ -199,6 +386,18 @@ export default function RealEstatePage() {
     if (res.ok) {
       const saved = await res.json();
       setProperties((prev) => [...prev, saved]);
+    }
+  }
+
+  async function handleEdit(id: string, updates: Partial<Property>) {
+    const res = await fetch(`/api/real-estate/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setProperties((prev) => prev.map((p) => (p.id === id ? updated : p)));
     }
   }
 
@@ -342,6 +541,13 @@ export default function RealEstatePage() {
                       </div>
                       <div className="absolute top-4 right-4 flex gap-2">
                         <button
+                          onClick={(e) => { e.stopPropagation(); setEditingProperty(p); }}
+                          className="flex items-center gap-1 bg-primary/10 text-primary-fixed-dim hover:bg-primary/20 px-2 py-1 rounded-lg transition-colors"
+                          title="Edit property"
+                        >
+                          <span className="material-symbols-outlined text-xs">edit</span>
+                        </button>
+                        <button
                           onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }}
                           className="flex items-center gap-1 bg-tertiary/10 text-tertiary hover:bg-tertiary/20 px-2 py-1 rounded-lg transition-colors"
                           title="Remove property"
@@ -447,6 +653,16 @@ export default function RealEstatePage() {
       <AnimatePresence>
         {showAddModal && (
           <AddPropertyModal onClose={() => setShowAddModal(false)} onSave={handleAdd} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {editingProperty && (
+          <EditPropertyModal
+            property={editingProperty}
+            onClose={() => setEditingProperty(null)}
+            onSave={handleEdit}
+          />
         )}
       </AnimatePresence>
 

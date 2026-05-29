@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from './Card';
 import { AnimatedNumber } from './AnimatedNumber';
 import { DeltaChip } from './Chip';
@@ -24,6 +24,10 @@ export function KPICard({ label, value, format = 'inr', delta, sub, accent = 'ne
   const [editMode, setEditMode] = useState(false);
   const [localValue, setLocalValue] = useState(value);
   const [inputVal, setInputVal] = useState('');
+
+  useEffect(() => {
+    if (!editMode) setLocalValue(value);
+  }, [value, editMode]);
 
   const accentText = {
     neutral: 'text-on-surface',
