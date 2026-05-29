@@ -48,6 +48,28 @@ async function fetchLivePrice(ticker: string): Promise<{ ltp: number; daily: num
   return null;
 }
 
+// ─── Manual-holdings localStorage helpers ────────────────────────────────────
+// Manual equity/MF/ETF additions are stored in their own keys so a broker
+// refresh never wipes them out.
+const MANUAL_KEY = {
+  equity: 'sova-manual-equity',
+  mf:     'sova-manual-mf',
+  etf:    'sova-manual-etf',
+} as const;
+
+function readManual(cat: keyof typeof MANUAL_KEY): Holding[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const v = localStorage.getItem(MANUAL_KEY[cat]);
+    return v ? (JSON.parse(v) as Holding[]) : [];
+  } catch { return []; }
+}
+
+function writeManual(cat: keyof typeof MANUAL_KEY, holdings: Holding[]): void {
+  try { localStorage.setItem(MANUAL_KEY[cat], JSON.stringify(holdings)); } catch {}
+}
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
 export function HoldingsProvider({ children }: { children: React.ReactNode }) {
   const [equityHoldings, setEquityHoldings] = useState<Holding[]>(() => {
     if (typeof window === 'undefined') return [];
@@ -157,7 +179,17 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       );
       const enrichedCustom = await enrichWithLivePrices(extraCustom);
 
-      const equity: Holding[] = [...deduped, ...enrichedCustom];
+      // Merge localStorage-only manual additions (not in broker feeds OR Supabase trades)
+      const allKnownTickers = new Set([
+        ...seenTickers,
+        ...extraCustom.map((h) => normalizeTicker(h.ticker ?? '')),
+      ]);
+      const manualEquity = readManual('equity').filter(
+        (h) => !allKnownTickers.has(normalizeTicker(h.ticker ?? ''))
+      );
+      const enrichedManual = await enrichWithLivePrices(manualEquity);
+
+      const equity: Holding[] = [...deduped, ...enrichedCustom, ...enrichedManual];
       setEquityHoldings(equity);
       setIntradayReady(true); // batched with setEquityHoldings — single render with correct dayAbs
       const freshTs = new Date().toISOString();
@@ -195,7 +227,14 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       const cached: Holding[] = e ? JSON.parse(e) : [];
       const cachedTickerSet = new Set(cached.map((h) => normalizeTicker(h.ticker ?? '')));
       const extra = customHoldings.filter((h) => !cachedTickerSet.has(normalizeTicker(h.ticker ?? '')));
-      setEquityHoldings([...cached, ...extra]);
+
+      // Merge localStorage manual additions that aren't in the broker cache
+      const allKnown = new Set([...cached, ...extra].map((h) => normalizeTicker(h.ticker ?? '')));
+      const manualEquity = readManual('equity').filter(
+        (h) => !allKnown.has(normalizeTicker(h.ticker ?? ''))
+      );
+
+      setEquityHoldings([...cached, ...extra, ...manualEquity]);
       if (m) setMutualFundHoldings(JSON.parse(m));
       if (f) setETFHoldings(JSON.parse(f));
     } catch {}
@@ -307,10 +346,21 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
   }, [isLoading, equityHoldings, mutualFundHoldings, etfHoldings]);
 
   const addHolding = useCallback((holding: Holding, category: 'equity' | 'mf' | 'etf') => {
-    const h = { ...holding, id: holding.id || `${holding.ticker}-${Date.now()}` };
+    // Always mark as manual and give it a stable id.
+    const h: Holding = {
+      ...holding,
+      id: holding.id || `${holding.ticker ?? 'custom'}-${Date.now()}`,
+      source: holding.source ?? 'custom',
+    };
     if (category === 'equity') setEquityHoldings((prev) => [...prev, h]);
     else if (category === 'mf') setMutualFundHoldings((prev) => [...prev, h]);
     else setETFHoldings((prev) => [...prev, h]);
+
+    // Persist to the manual store so it survives broker refreshes.
+    if (h.source === 'custom') {
+      const cat = category === 'etf' ? 'etf' : category;
+      writeManual(cat, [...readManual(cat), h]);
+    }
   }, []);
 
   const updateHolding = useCallback((id: string, updates: Partial<Holding>, category: 'equity' | 'mf' | 'etf') => {
@@ -318,6 +368,13 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
     if (category === 'equity') setEquityHoldings(patch);
     else if (category === 'mf') setMutualFundHoldings(patch);
     else setETFHoldings(patch);
+
+    // Keep the manual store in sync for custom holdings.
+    const cat = category === 'etf' ? 'etf' : category;
+    const manual = readManual(cat);
+    if (manual.some((h) => h.id === id)) {
+      writeManual(cat, manual.map((h) => (h.id === id ? { ...h, ...updates } : h)));
+    }
   }, []);
 
   const removeHolding = useCallback((id: string, category: 'equity' | 'mf' | 'etf') => {
@@ -325,6 +382,13 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
     if (category === 'equity') setEquityHoldings(filter);
     else if (category === 'mf') setMutualFundHoldings(filter);
     else setETFHoldings(filter);
+
+    // Remove from the manual store too (broker holdings won't be there, so it's a no-op for them).
+    const cat = category === 'etf' ? 'etf' : category;
+    const manual = readManual(cat);
+    if (manual.some((h) => h.id === id)) {
+      writeManual(cat, manual.filter((h) => h.id !== id));
+    }
   }, []);
 
   const updateHoldingsFromActivity = useCallback((activity: ActivityItem) => {

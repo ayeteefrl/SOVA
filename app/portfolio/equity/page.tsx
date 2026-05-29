@@ -420,6 +420,7 @@ function AddEquityModal({
       total: totalPct,
       weight: 0,
       sector,
+      source: 'custom',
     };
 
     onAdd(newHolding);

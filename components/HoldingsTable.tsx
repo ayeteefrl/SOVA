@@ -6,6 +6,39 @@ import { Holding } from '@/lib/data';
 import { cn, formatINR } from '@/lib/utils';
 import { DeltaChip } from '@/components/ui/Chip';
 
+const BROKER_SOURCES: Holding['source'][] = ['zerodha', 'angel_one', 'upstox', 'groww', 'hdfc', 'motilal'];
+const SOURCE_LABEL: Partial<Record<NonNullable<Holding['source']>, string>> = {
+  zerodha:   'Zerodha',
+  angel_one: 'Angel',
+  upstox:    'Upstox',
+  groww:     'Groww',
+  hdfc:      'HDFC',
+  motilal:   'Motilal',
+  custom:    'Manual',
+};
+
+function isBroker(h: Holding) { return BROKER_SOURCES.includes(h.source); }
+
+function SourceBadge({ source }: { source: Holding['source'] }) {
+  if (!source) return null;
+  const label = SOURCE_LABEL[source];
+  if (!label) return null;
+  const isManual = source === 'custom';
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center px-1.5 py-0 rounded text-[7px] font-black uppercase tracking-widest leading-4',
+        isManual
+          ? 'bg-gold/10 text-gold ring-1 ring-gold/20'
+          : 'bg-primary/8 text-primary-fixed-dim ring-1 ring-primary/15',
+      )}
+    >
+      {isManual && <span className="mr-0.5 text-[7px]">✎</span>}
+      {label}
+    </span>
+  );
+}
+
 type SortKey = 'name' | 'value' | 'invested' | 'ltp' | 'daily' | 'total' | 'weight';
 type SortDir = 'asc' | 'desc';
 
@@ -30,7 +63,7 @@ export function HoldingsTable({
   });
   const [query, setQuery] = useState('');
 
-  const sorted = useMemo(() => {
+  const { brokerRows, manualRows } = useMemo(() => {
     const filtered = holdings.filter((h) =>
       h.name.toLowerCase().includes(query.toLowerCase()) ||
       h.ticker?.toLowerCase().includes(query.toLowerCase()),
@@ -40,7 +73,7 @@ export function HoldingsTable({
       if (k === 'ltp') return h.ltp;
       return h[k] as number | string;
     };
-    return [...filtered].sort((a, b) => {
+    const comparator = (a: Holding, b: Holding) => {
       const av = getValue(a, sortKey);
       const bv = getValue(b, sortKey);
       if (typeof av === 'number' && typeof bv === 'number') {
@@ -49,8 +82,14 @@ export function HoldingsTable({
       return sortDir === 'asc'
         ? String(av).localeCompare(String(bv))
         : String(bv).localeCompare(String(av));
-    });
+    };
+    const broker = [...filtered.filter(isBroker)].sort(comparator);
+    const manual = [...filtered.filter((h) => !isBroker(h))].sort(comparator);
+    return { brokerRows: broker, manualRows: manual };
   }, [holdings, sortKey, sortDir, query]);
+
+  // Flat sorted for simple consumers (mobile cards, etc.)
+  const sorted = [...brokerRows, ...manualRows];
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) {
@@ -115,7 +154,8 @@ export function HoldingsTable({
             <div />
           </div>
           <div className="divide-y divide-outline-variant/5">
-            {sorted.map((h, i) => {
+            {/* Broker-synced holdings */}
+            {brokerRows.map((h, i) => {
               const dayAbs = h.dayAbs ?? 0;
               const hasDayData = h.daily !== 0 || dayAbs !== 0;
               return (
@@ -127,7 +167,10 @@ export function HoldingsTable({
                   className="grid grid-cols-[2fr_0.6fr_0.75fr_0.75fr_0.8fr_0.8fr_0.75fr_0.65fr_0.7fr_0.55fr_64px] gap-3 px-4 py-4 items-center hover:bg-surface-container-highest/20 rounded-lg transition-colors group"
                 >
                   <div>
-                    <p className="text-xs font-bold text-on-surface">{h.name}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-xs font-bold text-on-surface">{h.name}</p>
+                      <SourceBadge source={h.source} />
+                    </div>
                     <p className="text-[9px] font-bold uppercase tracking-widest text-outline mt-0.5">
                       {h.ticker ?? (showSector ? h.sector : '')}
                     </p>
@@ -189,6 +232,98 @@ export function HoldingsTable({
                 </motion.div>
               );
             })}
+
+            {/* Manual-additions divider */}
+            {manualRows.length > 0 && (
+              <div className="grid grid-cols-[2fr_0.6fr_0.75fr_0.75fr_0.8fr_0.8fr_0.75fr_0.65fr_0.7fr_0.55fr_64px] gap-3 px-4 py-2 items-center">
+                <div className="col-span-full flex items-center gap-3">
+                  <div className="h-px flex-1 bg-gold/15" />
+                  <span className="text-[8px] font-black uppercase tracking-[0.25em] text-gold/60 flex items-center gap-1 shrink-0">
+                    <span className="material-symbols-outlined text-xs">edit_note</span>
+                    Manual Additions
+                  </span>
+                  <div className="h-px flex-1 bg-gold/15" />
+                </div>
+              </div>
+            )}
+
+            {/* Manual holdings */}
+            {manualRows.map((h, i) => {
+              const dayAbs = h.dayAbs ?? 0;
+              const hasDayData = h.daily !== 0 || dayAbs !== 0;
+              return (
+                <motion.div
+                  key={h.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: (brokerRows.length + i) * 0.03 }}
+                  className="grid grid-cols-[2fr_0.6fr_0.75fr_0.75fr_0.8fr_0.8fr_0.75fr_0.65fr_0.7fr_0.55fr_64px] gap-3 px-4 py-4 items-center hover:bg-gold/5 rounded-lg transition-colors group"
+                  style={{ borderLeft: '2px solid rgba(212,175,55,0.15)' }}
+                >
+                  <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-xs font-bold text-on-surface">{h.name}</p>
+                      <SourceBadge source={h.source} />
+                    </div>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-outline mt-0.5">
+                      {h.ticker ?? (showSector ? h.sector : '')}
+                    </p>
+                  </div>
+                  <p className="text-xs text-right font-semibold text-on-surface">{h.units.toLocaleString('en-IN')}</p>
+                  <p className="text-xs text-right text-on-surface-variant">
+                    {formatINR(h.avgCost, { decimals: 1 })}
+                  </p>
+                  <p className={cn(
+                    'text-xs text-right font-semibold',
+                    h.ltp > h.avgCost ? 'text-secondary' : h.ltp < h.avgCost ? 'text-tertiary' : 'text-on-surface-variant',
+                  )}>
+                    {formatINR(h.ltp, { decimals: 1 })}
+                  </p>
+                  <p className="text-xs text-right text-on-surface-variant">
+                    {formatINR(h.units * h.avgCost, { compact: true })}
+                  </p>
+                  <p className="text-xs text-right font-black text-on-surface">
+                    {formatINR(h.value, { compact: true })}
+                  </p>
+                  <p className={cn(
+                    'text-xs text-right font-black tabular-nums',
+                    !hasDayData ? 'text-outline' :
+                    dayAbs >= 0 ? 'text-secondary' : 'text-tertiary',
+                  )}>
+                    {!hasDayData ? '—' : `${dayAbs >= 0 ? '+' : ''}${formatINR(dayAbs, { compact: true })}`}
+                  </p>
+                  <div className="text-right flex justify-end">
+                    {hasDayData ? <DeltaChip value={h.daily} /> : <span className="text-[10px] text-outline font-bold">—</span>}
+                  </div>
+                  <div className="text-right flex justify-end">
+                    <DeltaChip value={h.total} />
+                  </div>
+                  <p className="text-xs text-right font-black text-primary-fixed-dim">
+                    {h.weight.toFixed(1)}%
+                  </p>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    {onEdit && (
+                      <button
+                        onClick={() => onEdit(h)}
+                        className="w-7 h-7 flex items-center justify-center rounded-md text-outline hover:text-primary-fixed-dim transition-colors"
+                        title="Edit"
+                      >
+                        <span className="material-symbols-outlined text-sm">edit</span>
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button
+                        onClick={() => onDelete(h.id)}
+                        className="w-7 h-7 flex items-center justify-center rounded-md text-outline hover:text-tertiary transition-colors"
+                        title="Delete"
+                      >
+                        <span className="material-symbols-outlined text-sm">close</span>
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -210,7 +345,10 @@ export function HoldingsTable({
               {/* Top row: name + delete */}
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-black text-on-surface leading-tight">{h.name}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-sm font-black text-on-surface leading-tight">{h.name}</p>
+                    <SourceBadge source={h.source} />
+                  </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     {h.ticker && (
                       <span className="text-[9px] font-black uppercase tracking-widest text-outline">{h.ticker}</span>
