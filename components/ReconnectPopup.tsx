@@ -15,12 +15,25 @@ export function ReconnectPopup() {
     needsGrowwReconnect,
     needsHdfcReconnect,
     needsMotilaReconnect,
+    isShowingCachedData,
+    cacheTimestamp,
   } = useHoldings();
 
   const [dismissed, setDismissed] = useState(true);
 
   useEffect(() => {
-    setDismissed(localStorage.getItem(DISMISS_KEY) === '1');
+    // Reset the dismiss flag each calendar day so the banner reappears after midnight
+    // token expiry even if the user dismissed it the previous day.
+    const dismissedDate = localStorage.getItem(DISMISS_KEY);
+    const today = new Date().toISOString().slice(0, 10);
+    // Legacy: '1' means dismissed indefinitely; new format stores a date string.
+    if (dismissedDate === '1' || dismissedDate === today) {
+      setDismissed(true);
+    } else {
+      // Dismissed on a previous day — clear it so the banner shows again today.
+      localStorage.removeItem(DISMISS_KEY);
+      setDismissed(false);
+    }
   }, []);
 
   // Names of every integration currently needing reconnection.
@@ -37,7 +50,8 @@ export function ReconnectPopup() {
   const show = !dismissed && disconnected.length > 0;
 
   function handleDismiss() {
-    localStorage.setItem(DISMISS_KEY, '1');
+    // Store today's date so the banner auto-reappears tomorrow after next expiry.
+    localStorage.setItem(DISMISS_KEY, new Date().toISOString().slice(0, 10));
     setDismissed(true);
   }
 
@@ -45,6 +59,21 @@ export function ReconnectPopup() {
     disconnected.length === 1
       ? `Your ${disconnected[0]} connection expired.`
       : `${disconnected.length} integrations need reconnecting.`;
+
+  // Human-readable "as of" label for the cached-data timestamp.
+  const asOfLabel = (() => {
+    if (!isShowingCachedData || !cacheTimestamp) return null;
+    try {
+      const d = new Date(cacheTimestamp);
+      const today = new Date().toISOString().slice(0, 10);
+      const tsDate = d.toISOString().slice(0, 10);
+      const timeStr = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+      if (tsDate === today) return `Showing data from today at ${timeStr}`;
+      const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+      if (tsDate === yesterday) return `Showing data from yesterday at ${timeStr}`;
+      return `Showing data from ${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} at ${timeStr}`;
+    } catch { return null; }
+  })();
 
   return (
     <AnimatePresence>
@@ -68,9 +97,16 @@ export function ReconnectPopup() {
               className="w-1.5 h-1.5 rounded-full shrink-0 animate-pulse"
               style={{ background: '#D4AF37', boxShadow: '0 0 8px #D4AF3760' }}
             />
-            <p className="text-[11px] font-bold text-on-surface-variant truncate">
-              {label}
-            </p>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-bold text-on-surface-variant truncate">
+                {label}
+              </p>
+              {asOfLabel && (
+                <p className="text-[9px] font-semibold text-outline truncate mt-0.5">
+                  {asOfLabel} — all values preserved until you reconnect.
+                </p>
+              )}
+            </div>
 
             <Link
               href="/settings#integrations"

@@ -40,7 +40,8 @@ export default function ActivityPage() {
 
   const { updateHoldingsFromActivity } = useHoldings();
 
-  // Load manual trades from Supabase + live trades from connected brokers
+  // Load manual trades from Supabase + live trades from connected brokers.
+  // Kite trades are cached in localStorage so they persist across midnight token expiry.
   useEffect(() => {
     async function loadActivity() {
       setLoadingActivity(true);
@@ -77,7 +78,9 @@ export default function ActivityPage() {
                                t.asset_class === 'MF' ? 'MF' : t.asset_class === 'ETF' ? 'ETF' : 'Equity',
         }));
 
-        // Merge Zerodha trades (tagged with kite_ prefix so we don't show edit/delete)
+        // Merge Zerodha trades (tagged with kite_ prefix so we don't show edit/delete).
+        // On success: update the localStorage cache.
+        // On failure (401 / network): restore from the cache so past trades remain visible.
         let kiteActivities: ActivityItem[] = [];
         if (kiteRes.ok) {
           const kiteData = await kiteRes.json();
@@ -86,7 +89,18 @@ export default function ActivityPage() {
               ...t,
               id: `kite_${t.id}`,
             }));
+            // Persist for when the token expires
+            try {
+              localStorage.setItem('sova-kite-activities', JSON.stringify(kiteActivities));
+              localStorage.setItem('sova-kite-activities-ts', new Date().toISOString());
+            } catch {}
           }
+        } else {
+          // Token expired or network error — restore last-known Kite trades
+          try {
+            const cached = localStorage.getItem('sova-kite-activities');
+            if (cached) kiteActivities = JSON.parse(cached) as ActivityItem[];
+          } catch {}
         }
 
         // Merge: manual trades first, then Kite (sorted newest first by timestamp)
@@ -95,7 +109,11 @@ export default function ActivityPage() {
         );
         setActivityLog(all);
       } catch {
-        setActivityLog([]);
+        // Network failure — at least restore cached Kite trades merged with nothing
+        try {
+          const cached = localStorage.getItem('sova-kite-activities');
+          if (cached) setActivityLog(JSON.parse(cached) as ActivityItem[]);
+        } catch {}
       } finally {
         setLoadingActivity(false);
       }

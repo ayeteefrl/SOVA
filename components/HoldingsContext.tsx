@@ -17,6 +17,10 @@ interface HoldingsContextType {
   needsGrowwReconnect: boolean;
   needsHdfcReconnect: boolean;
   needsMotilaReconnect: boolean;
+  /** True when holdings are being served from the last-known cache (no live broker data). */
+  isShowingCachedData: boolean;
+  /** ISO timestamp of when the cache was last written from a live fetch. */
+  cacheTimestamp: string | null;
   refresh: () => void;
   addHolding: (holding: Holding, category: 'equity' | 'mf' | 'etf') => void;
   updateHolding: (id: string, updates: Partial<Holding>, category: 'equity' | 'mf' | 'etf') => void;
@@ -77,6 +81,22 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   // True once the first live API response with real dayAbs values has been received
   const [intradayReady, setIntradayReady] = useState(false);
+  // True when displaying last-known cached data (all broker tokens have expired)
+  const [isShowingCachedData, setIsShowingCachedData] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const e = localStorage.getItem('sova-equity-holdings');
+      const m = localStorage.getItem('sova-mf-holdings');
+      const hasCache =
+        !!(e && (JSON.parse(e) as unknown[]).length) ||
+        !!(m && (JSON.parse(m) as unknown[]).length);
+      return hasCache; // starts true if cache exists; cleared once live data arrives
+    } catch { return false; }
+  });
+  const [cacheTimestamp, setCacheTimestamp] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('sova-cache-timestamp');
+  });
 
   const fetchHoldings = useCallback(async () => {
     // Only show the full loading skeleton when we have nothing cached
@@ -140,7 +160,13 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       const equity: Holding[] = [...deduped, ...enrichedCustom];
       setEquityHoldings(equity);
       setIntradayReady(true); // batched with setEquityHoldings — single render with correct dayAbs
-      try { localStorage.setItem('sova-equity-holdings', JSON.stringify(stripIntraday(equity))); } catch {}
+      const freshTs = new Date().toISOString();
+      try {
+        localStorage.setItem('sova-equity-holdings', JSON.stringify(stripIntraday(equity)));
+        localStorage.setItem('sova-cache-timestamp', freshTs);
+      } catch {}
+      setCacheTimestamp(freshTs);
+      setIsShowingCachedData(false); // live data is in — clear the stale-data indicator
 
       // MF from Zerodha (Angel One SmartAPI does not provide MF holdings)
       if (mfHoldings.length > 0) {
@@ -173,6 +199,10 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       if (m) setMutualFundHoldings(JSON.parse(m));
       if (f) setETFHoldings(JSON.parse(f));
     } catch {}
+    // Mark that we are on stale data so the UI can show the "as of [time]" indicator
+    setIsShowingCachedData(true);
+    const ts = localStorage.getItem('sova-cache-timestamp');
+    if (ts) setCacheTimestamp(ts);
   }
 
   useEffect(() => {
@@ -345,6 +375,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       isLoading, isRefreshing, intradayReady,
       needsKiteReconnect, needsAngelReconnect,
       needsUpstoxReconnect, needsGrowwReconnect, needsHdfcReconnect, needsMotilaReconnect,
+      isShowingCachedData, cacheTimestamp,
       refresh: fetchHoldings,
       addHolding, updateHolding, removeHolding, updateHoldingsFromActivity,
     }}>
