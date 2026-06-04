@@ -39,11 +39,15 @@ function fmtDate(iso?: string) {
 }
 
 function computeAutoInvested(sip: SIP): number {
+  // Manual override: user has entered the exact figure from their CAMS/broker report.
+  // This wins over auto-calculation and already includes lump sums.
+  const manual = Number(sip.total_invested ?? 0);
+  if (manual > 0) return manual;
+
   const lumpSum = Number(sip.lump_sum ?? 0);
   const amount = Number(sip.amount ?? 0);
-  if (!sip.start_date || !sip.debit_date) {
-    return Number(sip.total_invested ?? 0) + lumpSum;
-  }
+  if (!sip.start_date || !sip.debit_date) return lumpSum;
+
   const start = new Date(sip.start_date);
   const debitDay = new Date(sip.debit_date).getDate();
   const today = new Date();
@@ -236,6 +240,7 @@ function EditSIPModal({ sip, onClose, onSave }: { sip: SIP; onClose: () => void;
     debit_date: sip.debit_date ?? '',
     start_date: sip.start_date ?? '',
     lump_sum: String(sip.lump_sum ?? ''),
+    total_invested: sip.total_invested > 0 ? String(sip.total_invested) : '',
   });
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -248,6 +253,7 @@ function EditSIPModal({ sip, onClose, onSave }: { sip: SIP; onClose: () => void;
       debit_date: form.debit_date || undefined,
       start_date: form.start_date || undefined,
       lump_sum: form.lump_sum ? Number(form.lump_sum) : 0,
+      total_invested: form.total_invested ? Number(form.total_invested) : 0,
     });
     onClose();
   }
@@ -344,6 +350,37 @@ function EditSIPModal({ sip, onClose, onSave }: { sip: SIP; onClose: () => void;
           <p className="text-[9px] text-[#424754] font-semibold -mt-2">
             The day of month in the debit date repeats every month.
           </p>
+
+          {/* Manual override */}
+          <div className="rounded-xl p-4 space-y-3" style={{ background: '#111827', border: '1px solid #2f3445' }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#8c909f]">Actual Invested Override</p>
+                <p className="text-[9px] text-[#424754] mt-0.5">Enter the exact figure from your CAMS / broker report to fix any discrepancy. Clears auto-calculation.</p>
+              </div>
+              {form.total_invested && (
+                <button
+                  onClick={() => setForm((f) => ({ ...f, total_invested: '' }))}
+                  className="text-[9px] font-black uppercase tracking-widest text-[#ffb2b7] hover:text-white transition-colors ml-4 shrink-0"
+                >
+                  × Clear
+                </button>
+              )}
+            </div>
+            <input
+              type="number"
+              placeholder="e.g. 69996 — leave blank to use auto-calc"
+              value={form.total_invested}
+              onChange={(e) => setForm((f) => ({ ...f, total_invested: e.target.value }))}
+              className={inputCls}
+              style={inputStyle}
+            />
+            {form.total_invested && (
+              <p className="text-[9px] font-semibold text-[#4edea3]">
+                Auto-calculation is overridden. Showing ₹{Number(form.total_invested).toLocaleString('en-IN')} as invested.
+              </p>
+            )}
+          </div>
 
           {/* Actions */}
           <div className="flex gap-3 pt-1">
