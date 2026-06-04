@@ -164,3 +164,7 @@ CREATE INDEX IF NOT EXISTS idx_news_articles_captured_date
 -- ─── SIP one-time lump-sum investment ────────────────────────────────────────
 -- Run this if you already have the user_sips table and need to add lump_sum support
 ALTER TABLE user_sips ADD COLUMN IF NOT EXISTS lump_sum NUMERIC(12,2) DEFAULT 0;
+
+-- ─── SIP multiple dated lump sums ────────────────────────────────────────────
+-- Array of { date, amount, note? } objects for tracking additional investments
+ALTER TABLE user_sips ADD COLUMN IF NOT EXISTS lump_sums JSONB DEFAULT '[]'::jsonb;

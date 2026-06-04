@@ -8,7 +8,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { id } = await params;
   const body = await req.json();
-  const allowed = ['fund_name', 'fund_code', 'amount', 'debit_date', 'start_date', 'status', 'total_invested', 'current_value', 'units', 'nav', 'lump_sum'];
+  const allowed = ['fund_name', 'fund_code', 'amount', 'debit_date', 'start_date', 'status', 'total_invested', 'current_value', 'units', 'nav', 'lump_sum', 'lump_sums'];
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const key of allowed) {
     if (key in body) updates[key] = body[key];

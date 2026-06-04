@@ -9,6 +9,12 @@ import { formatINR, cn } from '@/lib/utils';
 import { createPortal } from 'react-dom';
 
 
+type LumpSumEntry = {
+  date: string;   // YYYY-MM-DD
+  amount: number;
+  note?: string;
+};
+
 type SIP = {
   id: string;
   fund_name: string;
@@ -22,6 +28,7 @@ type SIP = {
   units: number;
   nav?: number;
   lump_sum?: number;
+  lump_sums?: LumpSumEntry[];
 };
 
 function nextSIPDate(debitDate?: string): string {
@@ -40,13 +47,16 @@ function fmtDate(iso?: string) {
 
 function computeAutoInvested(sip: SIP): number {
   // Manual override: user has entered the exact figure from their CAMS/broker report.
-  // This wins over auto-calculation and already includes lump sums.
   const manual = Number(sip.total_invested ?? 0);
   if (manual > 0) return manual;
 
-  const lumpSum = Number(sip.lump_sum ?? 0);
   const amount = Number(sip.amount ?? 0);
-  if (!sip.start_date || !sip.debit_date) return lumpSum;
+  // Total lump sum = legacy single field + any dated entries in the array
+  const legacyLump = Number(sip.lump_sum ?? 0);
+  const arrayLump = (sip.lump_sums ?? []).reduce((a, ls) => a + Number(ls.amount), 0);
+  const totalLump = legacyLump + arrayLump;
+
+  if (!sip.start_date || !sip.debit_date) return totalLump;
 
   const start = new Date(sip.start_date);
   const debitDay = new Date(sip.debit_date).getDate();
@@ -57,7 +67,107 @@ function computeAutoInvested(sip: SIP): number {
     count++;
     cur.setMonth(cur.getMonth() + 1);
   }
-  return count * amount + lumpSum;
+  return count * amount + totalLump;
+}
+
+/* ── XIRR ───────────────────────────────────────────────────────────── */
+function xirrCalc(cashflows: { amount: number; date: Date }[]): number | null {
+  if (cashflows.length < 2) return null;
+  const t0 = cashflows[0].date.getTime();
+  const YEAR_MS = 365.25 * 24 * 60 * 60 * 1000;
+  let rate = 0.1;
+  for (let i = 0; i < 200; i++) {
+    let f = 0, df = 0;
+    for (const cf of cashflows) {
+      const t = (cf.date.getTime() - t0) / YEAR_MS;
+      const base = Math.pow(1 + rate, t);
+      f += cf.amount / base;
+      df -= t * cf.amount / (base * (1 + rate));
+    }
+    if (Math.abs(df) < 1e-12) return null;
+    const next = rate - f / df;
+    if (Math.abs(next - rate) < 1e-8) return next;
+    rate = next;
+  }
+  return null;
+}
+
+function computePortfolioXIRR(sips: SIP[]): number | null {
+  const today = new Date();
+  const cashflows: { amount: number; date: Date }[] = [];
+  let totalCurrentValue = 0;
+
+  for (const sip of sips) {
+    const cv = Number(sip.current_value ?? 0);
+    if (cv <= 0) continue;
+    totalCurrentValue += cv;
+
+    if (sip.start_date && sip.debit_date) {
+      const start = new Date(sip.start_date);
+      const debitDay = new Date(sip.debit_date).getDate();
+      const cur = new Date(start.getFullYear(), start.getMonth(), debitDay);
+      while (cur <= today) {
+        cashflows.push({ amount: -Number(sip.amount), date: new Date(cur) });
+        cur.setMonth(cur.getMonth() + 1);
+      }
+    }
+    // Legacy single lump sum on start_date
+    if (Number(sip.lump_sum ?? 0) > 0) {
+      cashflows.push({
+        amount: -Number(sip.lump_sum),
+        date: sip.start_date ? new Date(sip.start_date) : today,
+      });
+    }
+    // Dated lump sums
+    for (const ls of sip.lump_sums ?? []) {
+      cashflows.push({ amount: -Number(ls.amount), date: new Date(ls.date) });
+    }
+  }
+
+  if (totalCurrentValue <= 0 || cashflows.length === 0) return null;
+  cashflows.push({ amount: totalCurrentValue, date: today });
+  cashflows.sort((a, b) => a.date.getTime() - b.date.getTime());
+  return xirrCalc(cashflows);
+}
+
+/* ── Transaction builder ────────────────────────────────────────────── */
+type TxRow = {
+  key: string;
+  fund_name: string;
+  date: Date;
+  type: 'SIP' | 'Lump Sum';
+  amount: number;
+};
+
+function buildTransactions(sips: SIP[]): TxRow[] {
+  const rows: TxRow[] = [];
+  const today = new Date();
+
+  for (const sip of sips) {
+    if (sip.start_date && sip.debit_date) {
+      const start = new Date(sip.start_date);
+      const debitDay = new Date(sip.debit_date).getDate();
+      const cur = new Date(start.getFullYear(), start.getMonth(), debitDay);
+      let idx = 0;
+      while (cur <= today) {
+        rows.push({ key: `${sip.id}-s${idx}`, fund_name: sip.fund_name, date: new Date(cur), type: 'SIP', amount: Number(sip.amount) });
+        cur.setMonth(cur.getMonth() + 1);
+        idx++;
+      }
+    }
+    if (Number(sip.lump_sum ?? 0) > 0) {
+      rows.push({ key: `${sip.id}-l0`, fund_name: sip.fund_name, date: sip.start_date ? new Date(sip.start_date) : today, type: 'Lump Sum', amount: Number(sip.lump_sum) });
+    }
+    for (const ls of sip.lump_sums ?? []) {
+      rows.push({ key: `${sip.id}-la-${ls.date}`, fund_name: sip.fund_name, date: new Date(ls.date), type: 'Lump Sum', amount: Number(ls.amount) });
+    }
+  }
+
+  // Sort ascending to compute running totals, then reverse for display
+  rows.sort((a, b) => a.date.getTime() - b.date.getTime());
+  let running = 0;
+  const withTotals = rows.map((r) => { running += r.amount; return { ...r, runningTotal: running }; });
+  return withTotals.reverse();
 }
 
 /* ── Shared input style ─────────────────────────────────────────────── */
@@ -242,8 +352,18 @@ function EditSIPModal({ sip, onClose, onSave }: { sip: SIP; onClose: () => void;
     lump_sum: String(sip.lump_sum ?? ''),
     total_invested: sip.total_invested > 0 ? String(sip.total_invested) : '',
   });
+  const [lumpSums, setLumpSums] = useState<LumpSumEntry[]>(sip.lump_sums ?? []);
+  const [newLS, setNewLS] = useState({ date: '', amount: '', note: '' });
+  const [showLSForm, setShowLSForm] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+
+  function addLumpSum() {
+    if (!newLS.date || !newLS.amount) return;
+    setLumpSums((prev) => [...prev, { date: newLS.date, amount: Number(newLS.amount), note: newLS.note || undefined }]);
+    setNewLS({ date: '', amount: '', note: '' });
+    setShowLSForm(false);
+  }
 
   function submit() {
     if (!form.fund_name || !form.amount) return;
@@ -254,6 +374,7 @@ function EditSIPModal({ sip, onClose, onSave }: { sip: SIP; onClose: () => void;
       start_date: form.start_date || undefined,
       lump_sum: form.lump_sum ? Number(form.lump_sum) : 0,
       total_invested: form.total_invested ? Number(form.total_invested) : 0,
+      lump_sums: lumpSums,
     });
     onClose();
   }
@@ -350,6 +471,61 @@ function EditSIPModal({ sip, onClose, onSave }: { sip: SIP; onClose: () => void;
           <p className="text-[9px] text-[#424754] font-semibold -mt-2">
             The day of month in the debit date repeats every month.
           </p>
+
+          {/* Additional Lump Sums */}
+          <div className="rounded-xl p-4 space-y-3" style={{ background: '#111827', border: '1px solid #2f3445' }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#8c909f]">Additional Lump Sums</p>
+                <p className="text-[9px] text-[#424754] mt-0.5">Add extra one-time investments with their exact dates.</p>
+              </div>
+              <button
+                onClick={() => setShowLSForm((v) => !v)}
+                className="text-[9px] font-black uppercase tracking-widest text-[#adc6ff] hover:text-white transition-colors ml-4 shrink-0"
+              >
+                + Add
+              </button>
+            </div>
+            {lumpSums.length > 0 && (
+              <div className="space-y-1.5">
+                {lumpSums.map((ls, i) => (
+                  <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: '#1a2035' }}>
+                    <div>
+                      <span className="text-[10px] font-bold text-[#dde2f8]">₹{Number(ls.amount).toLocaleString('en-IN')}</span>
+                      <span className="text-[9px] text-[#8c909f] ml-2">{new Date(ls.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                      {ls.note && <span className="text-[9px] text-[#424754] ml-2">· {ls.note}</span>}
+                    </div>
+                    <button onClick={() => setLumpSums((prev) => prev.filter((_, j) => j !== i))} className="text-[#ffb2b7] hover:text-white transition-colors">
+                      <span className="material-symbols-outlined text-xs">close</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {showLSForm && (
+              <div className="space-y-2 pt-1">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={labelCls}>Date *</label>
+                    <input type="date" value={newLS.date} onChange={(e) => setNewLS((f) => ({ ...f, date: e.target.value }))} className={inputCls + ' [color-scheme:dark]'} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Amount (₹) *</label>
+                    <input type="number" placeholder="e.g. 19999" value={newLS.amount} onChange={(e) => setNewLS((f) => ({ ...f, amount: e.target.value }))} className={inputCls} style={inputStyle} />
+                  </div>
+                </div>
+                <input type="text" placeholder="Note (optional)" value={newLS.note} onChange={(e) => setNewLS((f) => ({ ...f, note: e.target.value }))} className={inputCls} style={inputStyle} />
+                <button
+                  onClick={addLumpSum}
+                  disabled={!newLS.date || !newLS.amount}
+                  className="w-full h-9 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-40"
+                  style={{ background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)', color: '#001a42' }}
+                >
+                  Confirm Lump Sum
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Manual override */}
           <div className="rounded-xl p-4 space-y-3" style={{ background: '#111827', border: '1px solid #2f3445' }}>
@@ -499,7 +675,7 @@ export default function MFPage() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingSIP, setEditingSIP] = useState<SIP | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'schedule' | 'schemes'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'schedule' | 'schemes' | 'history'>('overview');
 
   const fetchSIPs = useCallback(async () => {
     try {
@@ -551,10 +727,14 @@ export default function MFPage() {
   const monthlySIP = activeSIPs.reduce((a, s) => a + Number(s.amount ?? 0), 0);
   const totalBookValue = sips.reduce((a, s) => a + computeAutoInvested(s), 0);
 
+  const xirr = computePortfolioXIRR(sips);
+  const transactions = buildTransactions(sips);
+
   const tabs = [
     { id: 'overview', label: 'Overview', icon: 'dashboard' },
     { id: 'schedule', label: 'SIP Schedule', icon: 'autorenew' },
     { id: 'schemes', label: 'MF Schemes', icon: 'pie_chart' },
+    { id: 'history', label: 'Transaction History', icon: 'receipt_long' },
   ] as const;
 
   return (
@@ -573,10 +753,10 @@ export default function MFPage() {
         />
         <KPICard
           label="Avg XIRR"
-          value={0}
+          value={xirr != null ? xirr * 100 : 0}
           format="percent"
-          accent="positive"
-          sub="Needs NAV data"
+          accent={xirr != null && xirr > 0 ? 'positive' : 'neutral'}
+          sub={xirr != null ? 'Based on current NAV' : 'Needs current NAV data'}
           icon="insights"
         />
         <KPICard label="Active Schemes" value={activeSIPs.length} format="number" icon="dataset" />
@@ -756,6 +936,55 @@ export default function MFPage() {
                 <p className="text-[9px] font-black uppercase tracking-widest text-outline col-span-3">Portfolio Total</p>
                 <p className="text-sm font-black text-secondary">{formatINR(totalBookValue)}</p>
                 <div /><div />
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Tab: Transaction History */}
+      {activeTab === 'history' && (
+        <Card tier="low" className="p-8">
+          <SectionHeader
+            title="Transaction History"
+            subtitle="All SIP installments and lump sum investments"
+            className="mb-6"
+          />
+          {transactions.length === 0 ? (
+            <div className="text-center py-12">
+              <span className="material-symbols-outlined text-4xl text-outline">receipt_long</span>
+              <p className="text-sm text-outline mt-3">No transactions yet. Add a SIP to see history.</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {/* Header */}
+              <div className="grid grid-cols-[120px_2fr_100px_120px_130px] gap-3 px-4 pb-2 border-b border-outline-variant/10">
+                {['Date', 'Fund', 'Type', 'Amount', 'Cumulative'].map((h) => (
+                  <p key={h} className="text-[9px] font-black uppercase tracking-widest text-outline">{h}</p>
+                ))}
+              </div>
+              {(transactions as (TxRow & { runningTotal: number })[]).map((tx) => (
+                <div
+                  key={tx.key}
+                  className="grid grid-cols-[120px_2fr_100px_120px_130px] gap-3 px-4 py-2.5 rounded-lg hover:bg-surface-container-highest/20 transition-colors items-center"
+                >
+                  <p className="text-[10px] font-bold text-on-surface-variant">
+                    {tx.date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                  <p className="text-xs font-bold text-on-surface truncate">{tx.fund_name}</p>
+                  <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full w-fit ${
+                    tx.type === 'SIP' ? 'bg-primary/10 text-primary-fixed-dim' : 'bg-gold/10 text-gold'
+                  }`}>
+                    {tx.type}
+                  </span>
+                  <p className="text-xs font-black text-on-surface">{formatINR(tx.amount)}</p>
+                  <p className="text-xs font-bold text-secondary">{formatINR(tx.runningTotal)}</p>
+                </div>
+              ))}
+              {/* Footer total */}
+              <div className="grid grid-cols-[120px_2fr_100px_120px_130px] gap-3 px-4 pt-3 mt-1 border-t border-outline-variant/15 items-center">
+                <p className="text-[9px] font-black uppercase tracking-widest text-outline col-span-4">Total Invested</p>
+                <p className="text-sm font-black text-secondary">{formatINR(totalBookValue)}</p>
               </div>
             </div>
           )}
