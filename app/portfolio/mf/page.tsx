@@ -29,6 +29,7 @@ type SIP = {
   nav?: number;
   lump_sum?: number;
   lump_sums?: LumpSumEntry[];
+  missed_amount?: number;
 };
 
 function nextSIPDate(debitDate?: string): string {
@@ -46,17 +47,13 @@ function fmtDate(iso?: string) {
 }
 
 function computeAutoInvested(sip: SIP): number {
-  // Manual override: user has entered the exact figure from their CAMS/broker report.
-  const manual = Number(sip.total_invested ?? 0);
-  if (manual > 0) return manual;
-
   const amount = Number(sip.amount ?? 0);
-  // Total lump sum = legacy single field + any dated entries in the array
   const legacyLump = Number(sip.lump_sum ?? 0);
   const arrayLump = (sip.lump_sums ?? []).reduce((a, ls) => a + Number(ls.amount), 0);
   const totalLump = legacyLump + arrayLump;
+  const missed = Number(sip.missed_amount ?? 0);
 
-  if (!sip.start_date || !sip.debit_date) return totalLump;
+  if (!sip.start_date || !sip.debit_date) return Math.max(0, totalLump - missed);
 
   const start = new Date(sip.start_date);
   const debitDay = new Date(sip.debit_date).getDate();
@@ -67,7 +64,7 @@ function computeAutoInvested(sip: SIP): number {
     count++;
     cur.setMonth(cur.getMonth() + 1);
   }
-  return count * amount + totalLump;
+  return Math.max(0, count * amount + totalLump - missed);
 }
 
 /* ── XIRR ───────────────────────────────────────────────────────────── */
@@ -350,7 +347,7 @@ function EditSIPModal({ sip, onClose, onSave }: { sip: SIP; onClose: () => void;
     debit_date: sip.debit_date ?? '',
     start_date: sip.start_date ?? '',
     lump_sum: String(sip.lump_sum ?? ''),
-    total_invested: sip.total_invested > 0 ? String(sip.total_invested) : '',
+    missed_amount: Number(sip.missed_amount ?? 0) > 0 ? String(sip.missed_amount) : '',
   });
   const [lumpSums, setLumpSums] = useState<LumpSumEntry[]>(sip.lump_sums ?? []);
   const [newLS, setNewLS] = useState({ date: '', amount: '', note: '' });
@@ -373,7 +370,7 @@ function EditSIPModal({ sip, onClose, onSave }: { sip: SIP; onClose: () => void;
       debit_date: form.debit_date || undefined,
       start_date: form.start_date || undefined,
       lump_sum: form.lump_sum ? Number(form.lump_sum) : 0,
-      total_invested: form.total_invested ? Number(form.total_invested) : 0,
+      missed_amount: form.missed_amount ? Number(form.missed_amount) : 0,
       lump_sums: lumpSums,
     });
     onClose();
@@ -527,16 +524,18 @@ function EditSIPModal({ sip, onClose, onSave }: { sip: SIP; onClose: () => void;
             )}
           </div>
 
-          {/* Manual override */}
+          {/* Missed / irregular correction */}
           <div className="rounded-xl p-4 space-y-3" style={{ background: '#111827', border: '1px solid #2f3445' }}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-[#8c909f]">Actual Invested Override</p>
-                <p className="text-[9px] text-[#424754] mt-0.5">Enter the exact figure from your CAMS / broker report to fix any discrepancy. Clears auto-calculation.</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#8c909f]">Missed / Irregular Deduction</p>
+                <p className="text-[9px] text-[#424754] mt-0.5">
+                  Total amount of installments that were skipped or failed. Subtracted from auto-calc permanently — set once, stays correct every month.
+                </p>
               </div>
-              {form.total_invested && (
+              {form.missed_amount && (
                 <button
-                  onClick={() => setForm((f) => ({ ...f, total_invested: '' }))}
+                  onClick={() => setForm((f) => ({ ...f, missed_amount: '' }))}
                   className="text-[9px] font-black uppercase tracking-widest text-[#ffb2b7] hover:text-white transition-colors ml-4 shrink-0"
                 >
                   × Clear
@@ -545,15 +544,15 @@ function EditSIPModal({ sip, onClose, onSave }: { sip: SIP; onClose: () => void;
             </div>
             <input
               type="number"
-              placeholder="e.g. 69996 — leave blank to use auto-calc"
-              value={form.total_invested}
-              onChange={(e) => setForm((f) => ({ ...f, total_invested: e.target.value }))}
+              placeholder="e.g. 2500 for one missed installment"
+              value={form.missed_amount}
+              onChange={(e) => setForm((f) => ({ ...f, missed_amount: e.target.value }))}
               className={inputCls}
               style={inputStyle}
             />
-            {form.total_invested && (
-              <p className="text-[9px] font-semibold text-[#4edea3]">
-                Auto-calculation is overridden. Showing ₹{Number(form.total_invested).toLocaleString('en-IN')} as invested.
+            {form.missed_amount && (
+              <p className="text-[9px] font-semibold text-[#ffb2b7]">
+                ₹{Number(form.missed_amount).toLocaleString('en-IN')} will be permanently deducted from the auto-calculated total.
               </p>
             )}
           </div>

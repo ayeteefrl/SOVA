@@ -168,3 +168,7 @@ ALTER TABLE user_sips ADD COLUMN IF NOT EXISTS lump_sum NUMERIC(12,2) DEFAULT 0;
 -- ─── SIP multiple dated lump sums ────────────────────────────────────────────
 -- Array of { date, amount, note? } objects for tracking additional investments
 ALTER TABLE user_sips ADD COLUMN IF NOT EXISTS lump_sums JSONB DEFAULT '[]'::jsonb;
+
+-- ─── SIP missed / irregular installment correction ────────────────────────────
+-- Permanently subtracted from auto-calc; set once to fix skipped installments
+ALTER TABLE user_sips ADD COLUMN IF NOT EXISTS missed_amount NUMERIC(12,2) DEFAULT 0;
