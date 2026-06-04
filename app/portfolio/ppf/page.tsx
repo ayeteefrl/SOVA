@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { KPICard } from '@/components/ui/KPICard';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { motion, AnimatePresence } from 'framer-motion';
-import { formatINR, cn } from '@/lib/utils';
+import { formatINR } from '@/lib/utils';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
@@ -13,22 +13,20 @@ import { createPortal } from 'react-dom';
 
 const MAX_ANNUAL = 150000;
 
-/* ── Helpers ────────────────────────────────────────────────────────── */
-
-// Indian financial year runs April 1 → March 31.
-// Jan–Mar belong to the *previous* calendar year's FY.
+/* ── FY helper ──────────────────────────────────────────────────────── */
+// Indian FY: April 1 → March 31. Jan/Feb/Mar belong to the previous year's FY.
 function getFY(dateStr: string): string {
   const d = new Date(dateStr);
-  const month = d.getMonth() + 1; // 1-based
+  const month = d.getMonth() + 1;
   const year = d.getFullYear();
   const fyStart = month >= 4 ? year : year - 1;
   return `FY ${fyStart}-${String(fyStart + 1).slice(-2)}`;
 }
 
-// PPF interest rule: calculated on the minimum balance between the 5th and
-// last day of each month. Deposits on/before the 5th count for that month;
-// deposits after the 5th count from the next month. Interest is credited
-// annually on March 31.
+/* ── PPF interest — full financial year ─────────────────────────────── */
+// Deposits on/before the 5th of a month count for that month's min-balance.
+// Deposits after the 5th count from the following month.
+// Interest is summed monthly and credited in one lump on March 31.
 function calcPPFAnnualInterest(
   deposits: { date: string; amount: number }[],
   openingBalance: number,
@@ -38,28 +36,63 @@ function calcPPFAnnualInterest(
   const monthlyRate = rate / 1200;
   let balance = openingBalance;
   let total = 0;
-
   for (let m = 0; m < 12; m++) {
-    const monthIdx = (3 + m) % 12; // Apr=3 … Dec=11, Jan=0, Feb=1, Mar=2
+    const monthIdx = (3 + m) % 12; // Apr=3 … Mar=2
     const year = monthIdx >= 3 ? fyStartYear : fyStartYear + 1;
-
-    // Deposits on/before 5th count for this month's min balance
     for (const dep of deposits) {
       const d = new Date(dep.date);
-      if (d.getFullYear() === year && d.getMonth() === monthIdx && d.getDate() <= 5) {
-        balance += dep.amount;
-      }
+      if (d.getFullYear() === year && d.getMonth() === monthIdx && d.getDate() <= 5) balance += dep.amount;
     }
     total += Math.round(balance * monthlyRate);
-    // Deposits after 5th enter running balance for next month
     for (const dep of deposits) {
       const d = new Date(dep.date);
-      if (d.getFullYear() === year && d.getMonth() === monthIdx && d.getDate() > 5) {
-        balance += dep.amount;
-      }
+      if (d.getFullYear() === year && d.getMonth() === monthIdx && d.getDate() > 5) balance += dep.amount;
     }
   }
   return total;
+}
+
+/* ── PPF interest — YTD estimate for current (incomplete) FY ────────── */
+// Returns how much has accrued month-by-month up to today, PLUS what the
+// full year will be if no further deposits are made. Both figures are
+// computed purely from the deposit dates & amounts in the database.
+function calcPPFYTD(
+  deposits: { date: string; amount: number }[],
+  openingBalance: number,
+  rate: number,
+  fyStartYear: number,
+): { accrued: number; projectedFullYear: number } {
+  const monthlyRate = rate / 1200;
+  const today = new Date();
+  let balance = openingBalance;
+  let accrued = 0;
+  let projectedFullYear = 0;
+
+  for (let m = 0; m < 12; m++) {
+    const monthIdx = (3 + m) % 12;
+    const year = monthIdx >= 3 ? fyStartYear : fyStartYear + 1;
+
+    for (const dep of deposits) {
+      const d = new Date(dep.date);
+      if (d.getFullYear() === year && d.getMonth() === monthIdx && d.getDate() <= 5) balance += dep.amount;
+    }
+
+    const monthInterest = Math.round(balance * monthlyRate);
+    projectedFullYear += monthInterest;
+
+    // A month is "elapsed" once we're at or past it (its min-balance is known)
+    const elapsed =
+      year < today.getFullYear() ||
+      (year === today.getFullYear() && monthIdx < today.getMonth()) ||
+      (year === today.getFullYear() && monthIdx === today.getMonth());
+    if (elapsed) accrued += monthInterest;
+
+    for (const dep of deposits) {
+      const d = new Date(dep.date);
+      if (d.getFullYear() === year && d.getMonth() === monthIdx && d.getDate() > 5) balance += dep.amount;
+    }
+  }
+  return { accrued, projectedFullYear };
 }
 
 /* ── Types ──────────────────────────────────────────────────────────── */
@@ -73,28 +106,27 @@ type Contribution = {
   interest_rate: number;
 };
 
-// A display row — either a deposit entry or a synthetic year-end interest credit row
-type ProcessedRow = Contribution & { isInterestRow?: boolean };
+type ProcessedRow = Contribution & {
+  rowType: 'deposit' | 'ytd-accrued' | 'year-end-credited';
+  projectedFullYearInterest?: number;
+};
 
-/* ── Process contributions with correct PPF logic ───────────────────── */
+/* ── Build display rows with correct PPF logic ──────────────────────── */
 function processContributions(raw: Contribution[], rate: number): ProcessedRow[] {
   if (raw.length === 0) return [];
 
-  // Re-derive FY from actual date (fixes any mis-labelled FYs) and sort by date
+  // Always re-derive FY from the actual date so mis-labelled rows are corrected
   const sorted = [...raw]
     .map(c => ({ ...c, fy: getFY(c.deposit_date) }))
     .sort((a, b) => a.deposit_date.localeCompare(b.deposit_date));
 
-  // Group by FY, preserving chronological order
   const fyGroups = new Map<string, Contribution[]>();
   for (const c of sorted) {
     if (!fyGroups.has(c.fy)) fyGroups.set(c.fy, []);
     fyGroups.get(c.fy)!.push(c);
   }
 
-  // Sort FY keys (lexicographic sort works: "FY 2025-26" < "FY 2026-27")
   const sortedFYKeys = Array.from(fyGroups.keys()).sort();
-
   const result: ProcessedRow[] = [];
   let openingBalance = 0;
   const todayFY = getFY(new Date().toISOString().slice(0, 10));
@@ -103,42 +135,49 @@ function processContributions(raw: Contribution[], rate: number): ProcessedRow[]
     const deps = fyGroups.get(fy)!;
     let runningBalance = openingBalance;
 
-    // Deposit rows — no per-deposit interest (PPF credits interest annually)
+    // Individual deposit rows — interest column shows "—" (PPF credits annually)
     for (const dep of deps) {
       runningBalance += dep.amount;
-      result.push({
-        ...dep,
-        fy,
-        interest_for_year: 0,
-        closing_balance: runningBalance,
-        interest_rate: rate,
-      });
+      result.push({ ...dep, fy, interest_for_year: 0, closing_balance: runningBalance, interest_rate: rate, rowType: 'deposit' });
     }
 
     const fyStartYear = parseInt(fy.slice(3, 7));
-    const interest = calcPPFAnnualInterest(
-      deps.map(d => ({ date: d.deposit_date, amount: d.amount })),
-      openingBalance,
-      rate,
-      fyStartYear,
-    );
+    const depInputs = deps.map(d => ({ date: d.deposit_date, amount: d.amount }));
 
-    const closingAfterInterest = runningBalance + interest;
-    const isPastFY = fy < todayFY;
-
-    // Year-end interest credit row: always for past FYs, only if non-zero for current FY
-    if (isPastFY || interest > 0) {
+    if (fy < todayFY) {
+      // Past FY — show actual year-end interest credit (computed from deposits)
+      const interest = calcPPFAnnualInterest(depInputs, openingBalance, rate, fyStartYear);
+      const closing = runningBalance + interest;
       result.push({
-        id: `${fy}-interest`,
+        id: `${fy}-credited`,
         fy,
         deposit_date: `${fyStartYear + 1}-03-31`,
         amount: 0,
         interest_for_year: interest,
-        closing_balance: closingAfterInterest,
+        closing_balance: closing,
         interest_rate: rate,
-        isInterestRow: true,
+        rowType: 'year-end-credited',
       });
-      openingBalance = closingAfterInterest;
+      openingBalance = closing;
+    } else if (fy === todayFY) {
+      // Current FY — show estimated YTD accrual + projected full-year amount
+      const { accrued, projectedFullYear } = calcPPFYTD(depInputs, openingBalance, rate, fyStartYear);
+      if (projectedFullYear > 0) {
+        result.push({
+          id: `${fy}-ytd`,
+          fy,
+          deposit_date: new Date().toISOString().slice(0, 10),
+          amount: 0,
+          interest_for_year: accrued,
+          closing_balance: runningBalance + accrued,
+          interest_rate: rate,
+          rowType: 'ytd-accrued',
+          projectedFullYearInterest: projectedFullYear,
+        });
+        openingBalance = runningBalance + accrued;
+      } else {
+        openingBalance = runningBalance;
+      }
     } else {
       openingBalance = runningBalance;
     }
@@ -147,7 +186,7 @@ function processContributions(raw: Contribution[], rate: number): ProcessedRow[]
   return result;
 }
 
-/* ── Corpus Growth Projection ───────────────────────────────────────── */
+/* ── Corpus growth projection ───────────────────────────────────────── */
 function buildProjection(
   rows: ProcessedRow[],
   rate: number,
@@ -155,21 +194,17 @@ function buildProjection(
 ): { year: string; corpus: number; projected?: boolean }[] {
   if (rows.length === 0) return [];
 
-  // Historical: one point per FY-end interest credit row
   const historical: { year: string; corpus: number; projected?: boolean }[] = [];
   for (const row of rows) {
-    if (row.isInterestRow) {
+    if (row.rowType !== 'deposit') {
       historical.push({ year: row.fy.slice(3, 7), corpus: row.closing_balance });
     }
   }
 
-  // If last row is a mid-FY deposit, add it as a current-year placeholder
   const last = rows[rows.length - 1];
-  if (!last.isInterestRow) {
+  if (last.rowType === 'deposit') {
     const yr = last.fy.slice(3, 7);
-    if (!historical.find(h => h.year === yr)) {
-      historical.push({ year: yr, corpus: last.closing_balance });
-    }
+    if (!historical.find(h => h.year === yr)) historical.push({ year: yr, corpus: last.closing_balance });
   }
 
   const lastHistYear = historical.length > 0
@@ -185,17 +220,14 @@ function buildProjection(
   return result;
 }
 
-/* ── Shared style helpers ────────────────────────────────────────────── */
+/* ── Style constants ────────────────────────────────────────────────── */
 const inputCls = 'w-full rounded-lg px-4 py-3 text-sm text-[#dde2f8] placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50 transition-all';
 const inputStyle = { background: '#1a2035', border: '1px solid #2f3445' };
 const labelCls = 'block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2';
 
 /* ── Edit Contribution Modal ─────────────────────────────────────────── */
 function EditContributionModal({
-  contribution,
-  ppfRate,
-  onClose,
-  onSave,
+  contribution, ppfRate, onClose, onSave,
 }: {
   contribution: Contribution;
   ppfRate: number;
@@ -208,7 +240,6 @@ function EditContributionModal({
   useEffect(() => { setMounted(true); }, []);
 
   const amt = Number(amount) || 0;
-
   function submit() {
     if (!date || amt <= 0 || amt > 150000) return;
     onSave(contribution.id, date, amt);
@@ -219,10 +250,8 @@ function EditContributionModal({
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-6" onClick={onClose}>
       <div className="absolute inset-0 bg-[#080e1d]/75 backdrop-blur-xl" />
       <motion.div
-        initial={{ opacity: 0, scale: 0.94, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.94, y: 20 }}
-        transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+        initial={{ opacity: 0, scale: 0.94, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 20 }} transition={{ type: 'spring', stiffness: 360, damping: 28 }}
         onClick={e => e.stopPropagation()}
         className="relative w-full max-w-md bg-[#0f1526] rounded-2xl overflow-hidden shadow-[0_32px_80px_-12px_rgba(0,0,0,0.8)]"
         style={{ border: '1px solid rgba(66,71,84,0.4)' }}
@@ -256,11 +285,8 @@ function EditContributionModal({
             </div>
           </div>
           {amt > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-              className="p-4 rounded-xl space-y-1"
-              style={{ background: '#1a2035', border: '1px solid #2f3445' }}
-            >
+            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+              className="p-4 rounded-xl space-y-1" style={{ background: '#1a2035', border: '1px solid #2f3445' }}>
               <p className="text-[9px] font-black uppercase tracking-widest text-[#8c909f]">Deposit Amount</p>
               <p className="text-lg font-black text-[#dde2f8]">₹{amt.toLocaleString('en-IN')}</p>
               <p className="text-[9px] text-[#8c909f] pt-1 leading-relaxed">
@@ -297,7 +323,8 @@ export default function PPFPage() {
   const [editingContribution, setEditingContribution] = useState<Contribution | null>(null);
   const [addingNew, setAddingNew] = useState(false);
   const [newEntry, setNewEntry] = useState({ date: '', amount: '' });
-  const [maturityYear, setMaturityYear] = useState(2033);
+  // null = auto-derive from first deposit; number = user has manually overridden
+  const [maturityYearOverride, setMaturityYearOverride] = useState<number | null>(null);
 
   const currentYear = new Date().getFullYear();
 
@@ -319,12 +346,21 @@ export default function PPFPage() {
     return () => window.removeEventListener('sova:refresh', handler);
   }, [fetchData]);
 
+  // Derive maturity year from the first deposit's FY + 15 (PPF 15-year lock-in rule).
+  // PPF matures at the end of the 15th financial year from the year of account opening.
+  // The user can override this by editing the "Years to Maturity" KPI.
+  const firstDeposit = contributions.length > 0
+    ? [...contributions].sort((a, b) => a.deposit_date.localeCompare(b.deposit_date))[0]
+    : null;
+  const openingFYStart = firstDeposit ? parseInt(getFY(firstDeposit.deposit_date).slice(3, 7)) : currentYear;
+  const maturityYear = maturityYearOverride ?? (openingFYStart + 15);
+  const yearsLeft = maturityYear - currentYear;
+
   const processedRows = processContributions(contributions, ppfRate);
 
-  const totalDeposited = processedRows.filter(r => !r.isInterestRow).reduce((a, c) => a + c.amount, 0);
-  const totalInterest = processedRows.filter(r => r.isInterestRow).reduce((a, c) => a + c.interest_for_year, 0);
+  const totalDeposited = processedRows.filter(r => r.rowType === 'deposit').reduce((a, c) => a + c.amount, 0);
+  const totalInterest = processedRows.filter(r => r.rowType !== 'deposit').reduce((a, c) => a + c.interest_for_year, 0);
   const currentCorpus = processedRows[processedRows.length - 1]?.closing_balance ?? 0;
-  const yearsLeft = maturityYear - currentYear;
   const chartData = buildProjection(processedRows, ppfRate, maturityYear);
   const projectedMaturity = chartData[chartData.length - 1]?.corpus ?? 0;
 
@@ -349,17 +385,14 @@ export default function PPFPage() {
   async function addContribution() {
     const amt = Number(newEntry.amount);
     if (!newEntry.date || amt <= 0) return;
-    const fy = getFY(newEntry.date);
     const res = await fetch('/api/ppf', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fy, deposit_date: newEntry.date, amount: amt, interest_for_year: 0, closing_balance: 0, interest_rate: ppfRate }),
+      body: JSON.stringify({ fy: getFY(newEntry.date), deposit_date: newEntry.date, amount: amt, interest_for_year: 0, closing_balance: 0, interest_rate: ppfRate }),
     });
     if (res.ok) {
       const created = await res.json();
-      setContributions(prev =>
-        [...prev, created].sort((a, b) => a.deposit_date.localeCompare(b.deposit_date)),
-      );
+      setContributions(prev => [...prev, created].sort((a, b) => a.deposit_date.localeCompare(b.deposit_date)));
     }
     setAddingNew(false);
     setNewEntry({ date: '', amount: '' });
@@ -368,7 +401,7 @@ export default function PPFPage() {
   return (
     <div className="p-4 md:p-8 space-y-5 md:space-y-8 pb-16 flex-1 min-w-0">
 
-      {/* Rate banner — pinned at top so it doesn't break page flow */}
+      {/* Rate banner — pinned at top */}
       <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-gold/8 border border-gold/20">
         <span className="material-symbols-outlined text-gold text-base">info</span>
         <p className="text-[10px] font-bold text-on-surface">
@@ -408,16 +441,16 @@ export default function PPFPage() {
               icon="flag"
               sub={`At ₹1.5L/yr · ${maturityYear} maturity`}
             />
-            {/* Years to Maturity — editable, updates all projections */}
+            {/* Maturity year auto-derived from first deposit's FY + 15. Editable to override. */}
             <KPICard
               label="Years to Maturity"
               value={yearsLeft}
               format="number"
               icon="hourglass_top"
-              sub={`Matures ${maturityYear}`}
+              sub={`Matures ${maturityYear} · opened FY ${openingFYStart}-${String(openingFYStart + 1).slice(-2)}`}
               onChange={v => {
                 const yrs = Math.max(1, Math.round(v));
-                setMaturityYear(currentYear + yrs);
+                setMaturityYearOverride(currentYear + yrs);
               }}
             />
           </div>
@@ -478,12 +511,10 @@ export default function PPFPage() {
           <Card tier="low" className="p-8">
             <SectionHeader
               title="Contribution Ledger"
-              subtitle="Interest credited annually on Mar 31 · calculated on monthly min-balance (5th–last day)"
+              subtitle="All interest is computed from your actual deposit dates & amounts — not entered manually"
               right={
-                <button
-                  onClick={() => setAddingNew(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest bg-primary/10 text-primary-fixed-dim hover:bg-primary/20 transition-colors"
-                >
+                <button onClick={() => setAddingNew(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest bg-primary/10 text-primary-fixed-dim hover:bg-primary/20 transition-colors">
                   <span className="material-symbols-outlined text-sm">add</span>
                   Add Contribution
                 </button>
@@ -527,34 +558,65 @@ export default function PPFPage() {
 
             {processedRows.length > 0 && (
               <div className="space-y-1">
-                <div className="grid grid-cols-[1fr_1.2fr_1fr_1fr_1fr_56px] gap-3 px-4 pb-2 border-b border-outline-variant/10">
+                {/* Header */}
+                <div className="grid grid-cols-[1fr_1.2fr_1fr_1.4fr_1fr_56px] gap-3 px-4 pb-2 border-b border-outline-variant/10">
                   {['FY', 'Date', 'Deposit', 'Interest', 'Balance', ''].map(h => (
                     <p key={h} className="text-[9px] font-black uppercase tracking-widest text-outline">{h}</p>
                   ))}
                 </div>
 
-                {processedRows.map(row =>
-                  row.isInterestRow ? (
-                    // Year-end interest credit row (green tint, no edit controls)
-                    <div
-                      key={row.id}
-                      className="grid grid-cols-[1fr_1.2fr_1fr_1fr_1fr_56px] gap-3 px-4 py-2.5 items-center rounded-lg"
-                      style={{ background: 'rgba(78,222,163,0.04)', border: '1px solid rgba(78,222,163,0.1)' }}
-                    >
-                      <p className="text-[9px] font-bold text-outline">{row.fy}</p>
-                      <p className="text-[9px] font-bold text-secondary/70 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[10px]">auto_awesome</span>
-                        Mar 31 Credit
-                      </p>
-                      <p className="text-[10px] text-outline/40">—</p>
-                      <p className="text-xs font-bold text-secondary">+{formatINR(row.interest_for_year)}</p>
-                      <p className="text-xs font-black text-on-surface">{formatINR(row.closing_balance)}</p>
-                      <div />
-                    </div>
-                  ) : (
-                    // Deposit row
+                {processedRows.map(row => {
+                  if (row.rowType === 'year-end-credited') {
+                    // Green row — actual interest credited on Mar 31, computed from deposit data
+                    return (
+                      <div key={row.id}
+                        className="grid grid-cols-[1fr_1.2fr_1fr_1.4fr_1fr_56px] gap-3 px-4 py-2.5 items-center rounded-lg"
+                        style={{ background: 'rgba(78,222,163,0.04)', border: '1px solid rgba(78,222,163,0.1)' }}
+                      >
+                        <p className="text-[9px] font-bold text-outline">{row.fy}</p>
+                        <p className="text-[9px] font-bold text-secondary/70 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[10px]">auto_awesome</span>
+                          Mar 31 Credit
+                        </p>
+                        <p className="text-[10px] text-outline/40">—</p>
+                        <p className="text-xs font-bold text-secondary">+{formatINR(row.interest_for_year)}</p>
+                        <p className="text-xs font-black text-on-surface">{formatINR(row.closing_balance)}</p>
+                        <div />
+                      </div>
+                    );
+                  }
+
+                  if (row.rowType === 'ytd-accrued') {
+                    // Amber row — estimated YTD interest for current FY, auto-updates each month
+                    return (
+                      <div key={row.id}
+                        className="grid grid-cols-[1fr_1.2fr_1fr_1.4fr_1fr_56px] gap-3 px-4 py-2.5 items-center rounded-lg"
+                        style={{ background: 'rgba(212,175,55,0.05)', border: '1px solid rgba(212,175,55,0.2)' }}
+                      >
+                        <p className="text-[9px] font-bold text-outline">{row.fy}</p>
+                        <p className="text-[9px] font-bold text-gold/70 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[10px]">schedule</span>
+                          Est. YTD
+                        </p>
+                        <p className="text-[10px] text-outline/40">—</p>
+                        <div>
+                          <p className="text-xs font-bold text-gold">+{formatINR(row.interest_for_year)}</p>
+                          {row.projectedFullYearInterest !== undefined && row.projectedFullYearInterest !== row.interest_for_year && (
+                            <p className="text-[8px] text-outline mt-0.5">
+                              /{formatINR(row.projectedFullYearInterest)} full yr
+                            </p>
+                          )}
+                        </div>
+                        <p className="text-xs text-on-surface-variant">{formatINR(row.closing_balance)}</p>
+                        <div />
+                      </div>
+                    );
+                  }
+
+                  // Deposit row
+                  return (
                     <motion.div key={row.id} layout className="rounded-lg overflow-hidden">
-                      <div className="grid grid-cols-[1fr_1.2fr_1fr_1fr_1fr_56px] gap-3 px-4 py-3 items-center rounded-lg transition-colors hover:bg-surface-container-highest/20">
+                      <div className="grid grid-cols-[1fr_1.2fr_1fr_1.4fr_1fr_56px] gap-3 px-4 py-3 items-center rounded-lg transition-colors hover:bg-surface-container-highest/20">
                         <p className="text-[10px] font-bold text-outline">{row.fy}</p>
                         <p className="text-[10px] text-on-surface-variant">{row.deposit_date}</p>
                         <p className="text-xs font-bold text-on-surface">{formatINR(row.amount)}</p>
@@ -570,11 +632,11 @@ export default function PPFPage() {
                         </div>
                       </div>
                     </motion.div>
-                  )
-                )}
+                  );
+                })}
 
                 {/* Totals */}
-                <div className="grid grid-cols-[1fr_1.2fr_1fr_1fr_1fr_56px] gap-3 px-4 pt-3 mt-2 border-t border-outline-variant/15">
+                <div className="grid grid-cols-[1fr_1.2fr_1fr_1.4fr_1fr_56px] gap-3 px-4 pt-3 mt-2 border-t border-outline-variant/15">
                   <p className="text-[9px] font-black uppercase tracking-widest text-outline col-span-2">Totals</p>
                   <p className="text-sm font-black text-on-surface">{formatINR(totalDeposited)}</p>
                   <p className="text-sm font-black text-secondary">{formatINR(totalInterest)}</p>
@@ -587,7 +649,6 @@ export default function PPFPage() {
         </>
       )}
 
-      {/* Edit Contribution Modal */}
       <AnimatePresence>
         {editingContribution && (
           <EditContributionModal
