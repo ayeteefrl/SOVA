@@ -30,6 +30,7 @@ type SIP = {
   lump_sum?: number;
   lump_sums?: LumpSumEntry[];
   missed_amount?: number;
+  missed_entries?: LumpSumEntry[];
 };
 
 function nextSIPDate(debitDate?: string): string {
@@ -51,7 +52,11 @@ function computeAutoInvested(sip: SIP): number {
   const legacyLump = Number(sip.lump_sum ?? 0);
   const arrayLump = (sip.lump_sums ?? []).reduce((a, ls) => a + Number(ls.amount), 0);
   const totalLump = legacyLump + arrayLump;
-  const missed = Number(sip.missed_amount ?? 0);
+  // missed_entries array takes priority over legacy scalar
+  const missedEntries = sip.missed_entries ?? [];
+  const missed = missedEntries.length > 0
+    ? missedEntries.reduce((a, m) => a + Number(m.amount), 0)
+    : Number(sip.missed_amount ?? 0);
 
   if (!sip.start_date || !sip.debit_date) return Math.max(0, totalLump - missed);
 
@@ -130,14 +135,17 @@ function computePortfolioXIRR(sips: SIP[]): number | null {
 /* ── Transaction builder ────────────────────────────────────────────── */
 type TxRow = {
   key: string;
+  sip_id: string;
   fund_name: string;
   date: Date;
-  type: 'SIP' | 'Lump Sum';
+  type: 'SIP' | 'Lump Sum' | 'Missed';
   amount: number;
+  note?: string;
+  runningTotal: number;
 };
 
 function buildTransactions(sips: SIP[]): TxRow[] {
-  const rows: TxRow[] = [];
+  const rows: Omit<TxRow, 'runningTotal'>[] = [];
   const today = new Date();
 
   for (const sip of sips) {
@@ -147,23 +155,25 @@ function buildTransactions(sips: SIP[]): TxRow[] {
       const cur = new Date(start.getFullYear(), start.getMonth(), debitDay);
       let idx = 0;
       while (cur <= today) {
-        rows.push({ key: `${sip.id}-s${idx}`, fund_name: sip.fund_name, date: new Date(cur), type: 'SIP', amount: Number(sip.amount) });
+        rows.push({ key: `${sip.id}-s${idx}`, sip_id: sip.id, fund_name: sip.fund_name, date: new Date(cur), type: 'SIP', amount: Number(sip.amount) });
         cur.setMonth(cur.getMonth() + 1);
         idx++;
       }
     }
     if (Number(sip.lump_sum ?? 0) > 0) {
-      rows.push({ key: `${sip.id}-l0`, fund_name: sip.fund_name, date: sip.start_date ? new Date(sip.start_date) : today, type: 'Lump Sum', amount: Number(sip.lump_sum) });
+      rows.push({ key: `${sip.id}-l0`, sip_id: sip.id, fund_name: sip.fund_name, date: sip.start_date ? new Date(sip.start_date) : today, type: 'Lump Sum', amount: Number(sip.lump_sum) });
     }
     for (const ls of sip.lump_sums ?? []) {
-      rows.push({ key: `${sip.id}-la-${ls.date}`, fund_name: sip.fund_name, date: new Date(ls.date), type: 'Lump Sum', amount: Number(ls.amount) });
+      rows.push({ key: `${sip.id}-la-${ls.date}`, sip_id: sip.id, fund_name: sip.fund_name, date: new Date(ls.date), type: 'Lump Sum', amount: Number(ls.amount), note: ls.note });
+    }
+    for (const me of sip.missed_entries ?? []) {
+      rows.push({ key: `${sip.id}-me-${me.date}`, sip_id: sip.id, fund_name: sip.fund_name, date: new Date(me.date), type: 'Missed', amount: -Number(me.amount), note: me.note });
     }
   }
 
-  // Sort ascending to compute running totals, then reverse for display
   rows.sort((a, b) => a.date.getTime() - b.date.getTime());
   let running = 0;
-  const withTotals = rows.map((r) => { running += r.amount; return { ...r, runningTotal: running }; });
+  const withTotals: TxRow[] = rows.map((r) => { running += r.amount; return { ...r, runningTotal: running }; });
   return withTotals.reverse();
 }
 
@@ -172,11 +182,79 @@ const inputCls = 'w-full rounded-lg px-4 py-3 text-sm text-[#dde2f8] placeholder
 const inputStyle = { background: '#1a2035', border: '1px solid #2f3445' };
 const labelCls = 'block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2';
 
+/* ── Lump-sum / Missed entry sub-list (shared by Add + Edit modals) ─── */
+function EntryList({
+  label, sublabel, entries, onRemove, newEntry, setNewEntry, onAdd, amountColor = '#adc6ff',
+}: {
+  label: string; sublabel: string;
+  entries: LumpSumEntry[]; onRemove: (i: number) => void;
+  newEntry: { date: string; amount: string; note: string };
+  setNewEntry: (v: { date: string; amount: string; note: string }) => void;
+  onAdd: () => void; amountColor?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-xl p-4 space-y-3" style={{ background: '#111827', border: '1px solid #2f3445' }}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-[#8c909f]">{label}</p>
+          <p className="text-[9px] text-[#424754] mt-0.5">{sublabel}</p>
+        </div>
+        <button onClick={() => setOpen((v) => !v)} className="text-[9px] font-black uppercase tracking-widest text-[#adc6ff] hover:text-white transition-colors ml-4 shrink-0">
+          + Add
+        </button>
+      </div>
+      {entries.length > 0 && (
+        <div className="space-y-1.5">
+          {entries.map((e, i) => (
+            <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: '#1a2035' }}>
+              <div>
+                <span className="text-[10px] font-bold" style={{ color: amountColor }}>₹{Number(e.amount).toLocaleString('en-IN')}</span>
+                <span className="text-[9px] text-[#8c909f] ml-2">{new Date(e.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                {e.note && <span className="text-[9px] text-[#424754] ml-2">· {e.note}</span>}
+              </div>
+              <button onClick={() => onRemove(i)} className="text-[#ffb2b7] hover:text-white transition-colors">
+                <span className="material-symbols-outlined text-xs">close</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {open && (
+        <div className="space-y-2 pt-1">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={labelCls}>Date *</label>
+              <input type="date" value={newEntry.date} onChange={(e) => setNewEntry({ ...newEntry, date: e.target.value })} className={inputCls + ' [color-scheme:dark]'} style={inputStyle} />
+            </div>
+            <div>
+              <label className={labelCls}>Amount (₹) *</label>
+              <input type="number" placeholder="e.g. 19999" value={newEntry.amount} onChange={(e) => setNewEntry({ ...newEntry, amount: e.target.value })} className={inputCls} style={inputStyle} />
+            </div>
+          </div>
+          <input type="text" placeholder="Note (optional)" value={newEntry.note} onChange={(e) => setNewEntry({ ...newEntry, note: e.target.value })} className={inputCls} style={inputStyle} />
+          <button onClick={onAdd} disabled={!newEntry.date || !newEntry.amount} className="w-full h-9 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-40" style={{ background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)', color: '#001a42' }}>
+            Confirm
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Add SIP Modal ──────────────────────────────────────────────────── */
 function AddSIPModal({ onClose, onSave }: { onClose: () => void; onSave: (sip: Partial<SIP>) => void }) {
-  const [form, setForm] = useState({ fund_name: '', amount: '', debit_date: '', start_date: '', lump_sum: '' });
+  const [form, setForm] = useState({ fund_name: '', amount: '', debit_date: '', start_date: '' });
+  const [lumpSums, setLumpSums] = useState<LumpSumEntry[]>([]);
+  const [newLS, setNewLS] = useState({ date: '', amount: '', note: '' });
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+
+  function addLS() {
+    if (!newLS.date || !newLS.amount) return;
+    setLumpSums((prev) => [...prev, { date: newLS.date, amount: Number(newLS.amount), note: newLS.note || undefined }]);
+    setNewLS({ date: '', amount: '', note: '' });
+  }
 
   function submit() {
     if (!form.fund_name || !form.amount) return;
@@ -185,192 +263,6 @@ function AddSIPModal({ onClose, onSave }: { onClose: () => void; onSave: (sip: P
       amount: Number(form.amount),
       debit_date: form.debit_date || undefined,
       start_date: form.start_date || undefined,
-      lump_sum: form.lump_sum ? Number(form.lump_sum) : 0,
-    });
-    onClose();
-  }
-
-  const totalFirst = (Number(form.amount) || 0) + (Number(form.lump_sum) || 0);
-
-  const modal = (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6" onClick={onClose}>
-      <div className="absolute inset-0 bg-[#080e1d]/75 backdrop-blur-xl" />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.94, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.94, y: 20 }}
-        transition={{ type: 'spring', stiffness: 360, damping: 28 }}
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-md bg-[#0f1526] rounded-2xl overflow-hidden shadow-[0_32px_80px_-12px_rgba(0,0,0,0.8)]"
-        style={{ border: '1px solid rgba(66,71,84,0.4)' }}
-      >
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#adc6ff30] to-transparent" />
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-8 py-6 border-b border-[#2f3445]/60">
-          <div>
-            <h2 className="text-xl font-black tracking-tight text-[#dde2f8] flex items-center gap-2.5">
-              <span className="material-symbols-outlined text-[#D4AF37] text-xl">autorenew</span>
-              Add New SIP
-            </h2>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#8c909f] mt-0.5">
-              Set up a recurring monthly investment
-            </p>
-          </div>
-          <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[#2f3445]/60 text-[#8c909f] hover:text-[#dde2f8] transition-colors">
-            <span className="material-symbols-outlined text-xl">close</span>
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="p-8 space-y-5 max-h-[70vh] overflow-y-auto">
-          <div>
-            <label className={labelCls}>Fund Name *</label>
-            <input
-              type="text"
-              placeholder="e.g. Parag Parikh Flexi Cap"
-              value={form.fund_name}
-              onChange={(e) => setForm((f) => ({ ...f, fund_name: e.target.value }))}
-              className={inputCls}
-              style={inputStyle}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelCls}>Monthly Amount (₹) *</label>
-              <input
-                type="number"
-                placeholder="e.g. 10000"
-                value={form.amount}
-                onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                className={inputCls}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>One-time Lumpsum (₹)</label>
-              <input
-                type="number"
-                placeholder="Optional upfront"
-                value={form.lump_sum}
-                onChange={(e) => setForm((f) => ({ ...f, lump_sum: e.target.value }))}
-                className={inputCls}
-                style={inputStyle}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelCls}>SIP Started On</label>
-              <input
-                type="date"
-                value={form.start_date}
-                onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
-                className={inputCls + ' [color-scheme:dark]'}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Monthly Debit Date</label>
-              <input
-                type="date"
-                value={form.debit_date}
-                onChange={(e) => setForm((f) => ({ ...f, debit_date: e.target.value }))}
-                className={inputCls + ' [color-scheme:dark]'}
-                style={inputStyle}
-              />
-            </div>
-          </div>
-          <p className="text-[9px] text-[#424754] font-semibold -mt-2">
-            Set the start date so auto-invested total is calculated correctly each month.
-            The day of month in the debit date repeats monthly.
-          </p>
-
-          {totalFirst > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-4 rounded-xl flex items-center justify-between"
-              style={{ background: '#1a2035', border: '1px solid #2f3445' }}
-            >
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-widest text-[#8c909f]">First Month Total</p>
-                {Number(form.lump_sum) > 0 && (
-                  <p className="text-[9px] text-[#424754] mt-0.5">
-                    ₹{Number(form.amount).toLocaleString('en-IN')} SIP + ₹{Number(form.lump_sum).toLocaleString('en-IN')} lumpsum
-                  </p>
-                )}
-              </div>
-              <p className="text-2xl font-black text-[#4edea3]">₹{totalFirst.toLocaleString('en-IN')}</p>
-            </motion.div>
-          )}
-
-          {/* Actions */}
-          <div className="flex gap-3 pt-1">
-            <button
-              onClick={onClose}
-              className="flex-1 h-12 rounded-lg text-[10px] font-black uppercase tracking-widest text-[#8c909f] hover:text-[#dde2f8] transition-colors"
-              style={{ background: '#1e2538', border: '1px solid #2f3445' }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={submit}
-              disabled={!form.fund_name || !form.amount}
-              className="flex-1 h-12 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:scale-[1.01] disabled:opacity-40 disabled:pointer-events-none"
-              style={{
-                background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)',
-                color: '#001a42',
-                boxShadow: '0 0 24px rgba(173,198,255,0.25)',
-              }}
-            >
-              <span className="material-symbols-outlined text-sm">autorenew</span>
-              Add SIP
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-
-  if (!mounted) return null;
-  return createPortal(modal, document.body);
-}
-
-/* ── Edit SIP Modal ─────────────────────────────────────────────────── */
-function EditSIPModal({ sip, onClose, onSave }: { sip: SIP; onClose: () => void; onSave: (id: string, updates: Partial<SIP>) => void }) {
-  const [form, setForm] = useState({
-    fund_name: sip.fund_name,
-    amount: String(sip.amount),
-    debit_date: sip.debit_date ?? '',
-    start_date: sip.start_date ?? '',
-    lump_sum: String(sip.lump_sum ?? ''),
-    missed_amount: Number(sip.missed_amount ?? 0) > 0 ? String(sip.missed_amount) : '',
-  });
-  const [lumpSums, setLumpSums] = useState<LumpSumEntry[]>(sip.lump_sums ?? []);
-  const [newLS, setNewLS] = useState({ date: '', amount: '', note: '' });
-  const [showLSForm, setShowLSForm] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-
-  function addLumpSum() {
-    if (!newLS.date || !newLS.amount) return;
-    setLumpSums((prev) => [...prev, { date: newLS.date, amount: Number(newLS.amount), note: newLS.note || undefined }]);
-    setNewLS({ date: '', amount: '', note: '' });
-    setShowLSForm(false);
-  }
-
-  function submit() {
-    if (!form.fund_name || !form.amount) return;
-    onSave(sip.id, {
-      fund_name: form.fund_name,
-      amount: Number(form.amount),
-      debit_date: form.debit_date || undefined,
-      start_date: form.start_date || undefined,
-      lump_sum: form.lump_sum ? Number(form.lump_sum) : 0,
-      missed_amount: form.missed_amount ? Number(form.missed_amount) : 0,
       lump_sums: lumpSums,
     });
     onClose();
@@ -389,195 +281,153 @@ function EditSIPModal({ sip, onClose, onSave }: { sip: SIP; onClose: () => void;
         style={{ border: '1px solid rgba(66,71,84,0.4)' }}
       >
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#adc6ff30] to-transparent" />
-
-        {/* Header */}
         <div className="flex items-center justify-between px-8 py-6 border-b border-[#2f3445]/60">
           <div>
             <h2 className="text-xl font-black tracking-tight text-[#dde2f8] flex items-center gap-2.5">
-              <span className="material-symbols-outlined text-[#adc6ff] text-xl">edit</span>
-              Edit SIP
+              <span className="material-symbols-outlined text-[#D4AF37] text-xl">autorenew</span>
+              Add New SIP
             </h2>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#8c909f] mt-0.5">
-              Update SIP details and schedule
-            </p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#8c909f] mt-0.5">Set up a recurring monthly investment</p>
           </div>
           <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[#2f3445]/60 text-[#8c909f] hover:text-[#dde2f8] transition-colors">
             <span className="material-symbols-outlined text-xl">close</span>
           </button>
         </div>
-
-        {/* Body */}
-        <div className="p-8 space-y-5 max-h-[70vh] overflow-y-auto">
+        <div className="p-8 space-y-5 max-h-[75vh] overflow-y-auto">
           <div>
-            <label className={labelCls}>Fund Name</label>
-            <input
-              type="text"
-              value={form.fund_name}
-              onChange={(e) => setForm((f) => ({ ...f, fund_name: e.target.value }))}
-              className={inputCls}
-              style={inputStyle}
-            />
+            <label className={labelCls}>Fund Name *</label>
+            <input type="text" placeholder="e.g. Parag Parikh Flexi Cap" value={form.fund_name} onChange={(e) => setForm((f) => ({ ...f, fund_name: e.target.value }))} className={inputCls} style={inputStyle} />
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelCls}>Monthly Amount (₹)</label>
-              <input
-                type="number"
-                value={form.amount}
-                onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                className={inputCls}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>One-time Lumpsum (₹)</label>
-              <input
-                type="number"
-                placeholder="0"
-                value={form.lump_sum}
-                onChange={(e) => setForm((f) => ({ ...f, lump_sum: e.target.value }))}
-                className={inputCls}
-                style={inputStyle}
-              />
-            </div>
+          <div>
+            <label className={labelCls}>Monthly Amount (₹) *</label>
+            <input type="number" placeholder="e.g. 2500" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} className={inputCls} style={inputStyle} />
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>SIP Started On</label>
-              <input
-                type="date"
-                value={form.start_date}
-                onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
-                className={inputCls + ' [color-scheme:dark]'}
-                style={inputStyle}
-              />
+              <input type="date" value={form.start_date} onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))} className={inputCls + ' [color-scheme:dark]'} style={inputStyle} />
             </div>
             <div>
               <label className={labelCls}>Monthly Debit Date</label>
-              <input
-                type="date"
-                value={form.debit_date}
-                onChange={(e) => setForm((f) => ({ ...f, debit_date: e.target.value }))}
-                className={inputCls + ' [color-scheme:dark]'}
-                style={inputStyle}
-              />
+              <input type="date" value={form.debit_date} onChange={(e) => setForm((f) => ({ ...f, debit_date: e.target.value }))} className={inputCls + ' [color-scheme:dark]'} style={inputStyle} />
             </div>
           </div>
-          <p className="text-[9px] text-[#424754] font-semibold -mt-2">
-            The day of month in the debit date repeats every month.
-          </p>
-
-          {/* Additional Lump Sums */}
-          <div className="rounded-xl p-4 space-y-3" style={{ background: '#111827', border: '1px solid #2f3445' }}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-[#8c909f]">Additional Lump Sums</p>
-                <p className="text-[9px] text-[#424754] mt-0.5">Add extra one-time investments with their exact dates.</p>
-              </div>
-              <button
-                onClick={() => setShowLSForm((v) => !v)}
-                className="text-[9px] font-black uppercase tracking-widest text-[#adc6ff] hover:text-white transition-colors ml-4 shrink-0"
-              >
-                + Add
-              </button>
-            </div>
-            {lumpSums.length > 0 && (
-              <div className="space-y-1.5">
-                {lumpSums.map((ls, i) => (
-                  <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: '#1a2035' }}>
-                    <div>
-                      <span className="text-[10px] font-bold text-[#dde2f8]">₹{Number(ls.amount).toLocaleString('en-IN')}</span>
-                      <span className="text-[9px] text-[#8c909f] ml-2">{new Date(ls.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                      {ls.note && <span className="text-[9px] text-[#424754] ml-2">· {ls.note}</span>}
-                    </div>
-                    <button onClick={() => setLumpSums((prev) => prev.filter((_, j) => j !== i))} className="text-[#ffb2b7] hover:text-white transition-colors">
-                      <span className="material-symbols-outlined text-xs">close</span>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {showLSForm && (
-              <div className="space-y-2 pt-1">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className={labelCls}>Date *</label>
-                    <input type="date" value={newLS.date} onChange={(e) => setNewLS((f) => ({ ...f, date: e.target.value }))} className={inputCls + ' [color-scheme:dark]'} style={inputStyle} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Amount (₹) *</label>
-                    <input type="number" placeholder="e.g. 19999" value={newLS.amount} onChange={(e) => setNewLS((f) => ({ ...f, amount: e.target.value }))} className={inputCls} style={inputStyle} />
-                  </div>
-                </div>
-                <input type="text" placeholder="Note (optional)" value={newLS.note} onChange={(e) => setNewLS((f) => ({ ...f, note: e.target.value }))} className={inputCls} style={inputStyle} />
-                <button
-                  onClick={addLumpSum}
-                  disabled={!newLS.date || !newLS.amount}
-                  className="w-full h-9 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-40"
-                  style={{ background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)', color: '#001a42' }}
-                >
-                  Confirm Lump Sum
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Missed / irregular correction */}
-          <div className="rounded-xl p-4 space-y-3" style={{ background: '#111827', border: '1px solid #2f3445' }}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-[#8c909f]">Missed / Irregular Deduction</p>
-                <p className="text-[9px] text-[#424754] mt-0.5">
-                  Total amount of installments that were skipped or failed. Subtracted from auto-calc permanently — set once, stays correct every month.
-                </p>
-              </div>
-              {form.missed_amount && (
-                <button
-                  onClick={() => setForm((f) => ({ ...f, missed_amount: '' }))}
-                  className="text-[9px] font-black uppercase tracking-widest text-[#ffb2b7] hover:text-white transition-colors ml-4 shrink-0"
-                >
-                  × Clear
-                </button>
-              )}
-            </div>
-            <input
-              type="number"
-              placeholder="e.g. 2500 for one missed installment"
-              value={form.missed_amount}
-              onChange={(e) => setForm((f) => ({ ...f, missed_amount: e.target.value }))}
-              className={inputCls}
-              style={inputStyle}
-            />
-            {form.missed_amount && (
-              <p className="text-[9px] font-semibold text-[#ffb2b7]">
-                ₹{Number(form.missed_amount).toLocaleString('en-IN')} will be permanently deducted from the auto-calculated total.
-              </p>
-            )}
-          </div>
-
-          {/* Actions */}
+          <p className="text-[9px] text-[#424754] font-semibold -mt-2">The day of month in the debit date repeats monthly.</p>
+          <EntryList
+            label="Lump Sum Investments"
+            sublabel="One-time investments with exact dates."
+            entries={lumpSums}
+            onRemove={(i) => setLumpSums((prev) => prev.filter((_, j) => j !== i))}
+            newEntry={newLS} setNewEntry={setNewLS} onAdd={addLS}
+            amountColor="#D4AF37"
+          />
           <div className="flex gap-3 pt-1">
-            <button
-              onClick={onClose}
-              className="flex-1 h-12 rounded-lg text-[10px] font-black uppercase tracking-widest text-[#8c909f] hover:text-[#dde2f8] transition-colors"
-              style={{ background: '#1e2538', border: '1px solid #2f3445' }}
-            >
-              Cancel
+            <button onClick={onClose} className="flex-1 h-12 rounded-lg text-[10px] font-black uppercase tracking-widest text-[#8c909f] hover:text-[#dde2f8] transition-colors" style={{ background: '#1e2538', border: '1px solid #2f3445' }}>Cancel</button>
+            <button onClick={submit} disabled={!form.fund_name || !form.amount} className="flex-1 h-12 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:scale-[1.01] disabled:opacity-40 disabled:pointer-events-none" style={{ background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)', color: '#001a42', boxShadow: '0 0 24px rgba(173,198,255,0.25)' }}>
+              <span className="material-symbols-outlined text-sm">autorenew</span>
+              Add SIP
             </button>
-            <button
-              onClick={submit}
-              disabled={!form.fund_name || !form.amount}
-              className="flex-1 h-12 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:scale-[1.01] disabled:opacity-40 disabled:pointer-events-none"
-              style={{
-                background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)',
-                color: '#001a42',
-                boxShadow: '0 0 24px rgba(173,198,255,0.25)',
-              }}
-            >
-              <span className="material-symbols-outlined text-sm">check</span>
-              Save Changes
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+
+  if (!mounted) return null;
+  return createPortal(modal, document.body);
+}
+
+/* ── Edit SIP Modal ─────────────────────────────────────────────────── */
+function EditSIPModal({ sip, onClose, onSave }: { sip: SIP; onClose: () => void; onSave: (id: string, updates: Partial<SIP>) => void }) {
+  const [form, setForm] = useState({ fund_name: sip.fund_name, amount: String(sip.amount), debit_date: sip.debit_date ?? '', start_date: sip.start_date ?? '' });
+  const [lumpSums, setLumpSums] = useState<LumpSumEntry[]>(sip.lump_sums ?? []);
+  const [newLS, setNewLS] = useState({ date: '', amount: '', note: '' });
+  const [missedEntries, setMissedEntries] = useState<LumpSumEntry[]>(sip.missed_entries ?? []);
+  const [newME, setNewME] = useState({ date: '', amount: '', note: '' });
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  function addLS() {
+    if (!newLS.date || !newLS.amount) return;
+    setLumpSums((prev) => [...prev, { date: newLS.date, amount: Number(newLS.amount), note: newLS.note || undefined }]);
+    setNewLS({ date: '', amount: '', note: '' });
+  }
+  function addME() {
+    if (!newME.date || !newME.amount) return;
+    setMissedEntries((prev) => [...prev, { date: newME.date, amount: Number(newME.amount), note: newME.note || undefined }]);
+    setNewME({ date: '', amount: '', note: '' });
+  }
+
+  function submit() {
+    if (!form.fund_name || !form.amount) return;
+    onSave(sip.id, {
+      fund_name: form.fund_name,
+      amount: Number(form.amount),
+      debit_date: form.debit_date || undefined,
+      start_date: form.start_date || undefined,
+      lump_sums: lumpSums,
+      missed_entries: missedEntries,
+      missed_amount: missedEntries.reduce((a, m) => a + Number(m.amount), 0),
+    });
+    onClose();
+  }
+
+  const modal = (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-[#080e1d]/75 backdrop-blur-xl" />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 20 }} transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-md bg-[#0f1526] rounded-2xl overflow-hidden shadow-[0_32px_80px_-12px_rgba(0,0,0,0.8)]"
+        style={{ border: '1px solid rgba(66,71,84,0.4)' }}
+      >
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#adc6ff30] to-transparent" />
+        <div className="flex items-center justify-between px-8 py-6 border-b border-[#2f3445]/60">
+          <div>
+            <h2 className="text-xl font-black tracking-tight text-[#dde2f8] flex items-center gap-2.5">
+              <span className="material-symbols-outlined text-[#adc6ff] text-xl">edit</span>Edit SIP
+            </h2>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#8c909f] mt-0.5">Update SIP details and schedule</p>
+          </div>
+          <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[#2f3445]/60 text-[#8c909f] hover:text-[#dde2f8] transition-colors">
+            <span className="material-symbols-outlined text-xl">close</span>
+          </button>
+        </div>
+        <div className="p-8 space-y-5 max-h-[75vh] overflow-y-auto">
+          <div>
+            <label className={labelCls}>Fund Name</label>
+            <input type="text" value={form.fund_name} onChange={(e) => setForm((f) => ({ ...f, fund_name: e.target.value }))} className={inputCls} style={inputStyle} />
+          </div>
+          <div>
+            <label className={labelCls}>Monthly Amount (₹)</label>
+            <input type="number" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} className={inputCls} style={inputStyle} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>SIP Started On</label>
+              <input type="date" value={form.start_date} onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))} className={inputCls + ' [color-scheme:dark]'} style={inputStyle} />
+            </div>
+            <div>
+              <label className={labelCls}>Monthly Debit Date</label>
+              <input type="date" value={form.debit_date} onChange={(e) => setForm((f) => ({ ...f, debit_date: e.target.value }))} className={inputCls + ' [color-scheme:dark]'} style={inputStyle} />
+            </div>
+          </div>
+          <p className="text-[9px] text-[#424754] font-semibold -mt-2">The day of month in the debit date repeats every month.</p>
+          <EntryList
+            label="Lump Sum Investments" sublabel="One-time investments with exact dates."
+            entries={lumpSums} onRemove={(i) => setLumpSums((prev) => prev.filter((_, j) => j !== i))}
+            newEntry={newLS} setNewEntry={setNewLS} onAdd={addLS} amountColor="#D4AF37"
+          />
+          <EntryList
+            label="Missed / Skipped Installments" sublabel="Enter the date and amount of each failed debit. Subtracted from auto-calc and shown in transaction history."
+            entries={missedEntries} onRemove={(i) => setMissedEntries((prev) => prev.filter((_, j) => j !== i))}
+            newEntry={newME} setNewEntry={setNewME} onAdd={addME} amountColor="#ffb2b7"
+          />
+          <div className="flex gap-3 pt-1">
+            <button onClick={onClose} className="flex-1 h-12 rounded-lg text-[10px] font-black uppercase tracking-widest text-[#8c909f] hover:text-[#dde2f8] transition-colors" style={{ background: '#1e2538', border: '1px solid #2f3445' }}>Cancel</button>
+            <button onClick={submit} disabled={!form.fund_name || !form.amount} className="flex-1 h-12 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:scale-[1.01] disabled:opacity-40 disabled:pointer-events-none" style={{ background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)', color: '#001a42', boxShadow: '0 0 24px rgba(173,198,255,0.25)' }}>
+              <span className="material-symbols-outlined text-sm">check</span>Save Changes
             </button>
           </div>
         </div>
@@ -618,14 +468,15 @@ function SIPRow({ sip, onUpdate, onDelete, onEdit }: {
             <p className="text-[9px] text-outline font-bold uppercase tracking-widest mt-0.5">
               Started {fmtDate(sip.start_date)} · Next {nextSIPDate(sip.debit_date)}
             </p>
-            {autoInvested > 0 && (
-              <p className="text-[9px] text-secondary/80 font-bold mt-0.5">
-                Auto-invested: {formatINR(autoInvested)}
-                {Number(sip.lump_sum ?? 0) > 0 && (
-                  <span className="text-gold"> (incl. {formatINR(Number(sip.lump_sum))} lumpsum)</span>
-                )}
-              </p>
-            )}
+            {autoInvested > 0 && (() => {
+              const totalLump = Number(sip.lump_sum ?? 0) + (sip.lump_sums ?? []).reduce((a, ls) => a + Number(ls.amount), 0);
+              return (
+                <p className="text-[9px] text-secondary/80 font-bold mt-0.5">
+                  Auto-invested: {formatINR(autoInvested)}
+                  {totalLump > 0 && <span className="text-gold"> (incl. {formatINR(totalLump)} lumpsum)</span>}
+                </p>
+              );
+            })()}
           </div>
         </div>
 
@@ -920,7 +771,7 @@ export default function MFPage() {
                     <p className="text-[9px] text-outline mt-0.5">Since {fmtDate(s.start_date)}</p>
                   </div>
                   <p className="text-xs font-black text-on-surface">{formatINR(Number(s.amount))}</p>
-                  <p className="text-xs font-bold text-gold">{Number(s.lump_sum ?? 0) > 0 ? formatINR(Number(s.lump_sum)) : '—'}</p>
+                  <p className="text-xs font-bold text-gold">{(() => { const t = Number(s.lump_sum ?? 0) + (s.lump_sums ?? []).reduce((a, ls) => a + Number(ls.amount), 0); return t > 0 ? formatINR(t) : '—'; })()}</p>
                   <p className="text-xs font-bold text-secondary">{formatINR(computeAutoInvested(s))}</p>
                   <p className="text-xs text-on-surface-variant">{nextSIPDate(s.debit_date)}</p>
                   <span className={cn(
@@ -944,11 +795,7 @@ export default function MFPage() {
       {/* Tab: Transaction History */}
       {activeTab === 'history' && (
         <Card tier="low" className="p-8">
-          <SectionHeader
-            title="Transaction History"
-            subtitle="All SIP installments and lump sum investments"
-            className="mb-6"
-          />
+          <SectionHeader title="Transaction History" subtitle="All SIP installments and lump sum investments" className="mb-6" />
           {transactions.length === 0 ? (
             <div className="text-center py-12">
               <span className="material-symbols-outlined text-4xl text-outline">receipt_long</span>
@@ -956,35 +803,50 @@ export default function MFPage() {
             </div>
           ) : (
             <div className="space-y-1">
-              {/* Header */}
-              <div className="grid grid-cols-[120px_2fr_100px_120px_130px] gap-3 px-4 pb-2 border-b border-outline-variant/10">
-                {['Date', 'Fund', 'Type', 'Amount', 'Cumulative'].map((h) => (
+              {/* Total at top */}
+              <div className="flex items-center justify-between px-4 py-3 rounded-xl mb-3" style={{ background: '#111827', border: '1px solid #2f3445' }}>
+                <p className="text-[10px] font-black uppercase tracking-widest text-outline">Total Invested</p>
+                <p className="text-lg font-black text-secondary">{formatINR(totalBookValue)}</p>
+              </div>
+              {/* Column headers */}
+              <div className="grid grid-cols-[110px_2fr_90px_110px_120px_32px] gap-3 px-4 pb-2 border-b border-outline-variant/10">
+                {['Date', 'Fund', 'Type', 'Amount', 'Cumulative', ''].map((h) => (
                   <p key={h} className="text-[9px] font-black uppercase tracking-widest text-outline">{h}</p>
                 ))}
               </div>
-              {(transactions as (TxRow & { runningTotal: number })[]).map((tx) => (
-                <div
-                  key={tx.key}
-                  className="grid grid-cols-[120px_2fr_100px_120px_130px] gap-3 px-4 py-2.5 rounded-lg hover:bg-surface-container-highest/20 transition-colors items-center"
-                >
-                  <p className="text-[10px] font-bold text-on-surface-variant">
-                    {tx.date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </p>
-                  <p className="text-xs font-bold text-on-surface truncate">{tx.fund_name}</p>
-                  <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full w-fit ${
-                    tx.type === 'SIP' ? 'bg-primary/10 text-primary-fixed-dim' : 'bg-gold/10 text-gold'
-                  }`}>
-                    {tx.type}
-                  </span>
-                  <p className="text-xs font-black text-on-surface">{formatINR(tx.amount)}</p>
-                  <p className="text-xs font-bold text-secondary">{formatINR(tx.runningTotal)}</p>
-                </div>
-              ))}
-              {/* Footer total */}
-              <div className="grid grid-cols-[120px_2fr_100px_120px_130px] gap-3 px-4 pt-3 mt-1 border-t border-outline-variant/15 items-center">
-                <p className="text-[9px] font-black uppercase tracking-widest text-outline col-span-4">Total Invested</p>
-                <p className="text-sm font-black text-secondary">{formatINR(totalBookValue)}</p>
-              </div>
+              {transactions.map((tx) => {
+                const isMissed = tx.type === 'Missed';
+                return (
+                  <div key={tx.key} className="grid grid-cols-[110px_2fr_90px_110px_120px_32px] gap-3 px-4 py-2.5 rounded-lg hover:bg-surface-container-highest/20 transition-colors items-center">
+                    <p className="text-[10px] font-bold text-on-surface-variant">
+                      {tx.date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-on-surface truncate">{tx.fund_name}</p>
+                      {tx.note && <p className="text-[9px] text-outline truncate">{tx.note}</p>}
+                    </div>
+                    <span className={cn(
+                      'text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full w-fit',
+                      tx.type === 'SIP' ? 'bg-primary/10 text-primary-fixed-dim' :
+                      tx.type === 'Lump Sum' ? 'bg-gold/10 text-gold' :
+                      'bg-tertiary/10 text-tertiary',
+                    )}>
+                      {tx.type}
+                    </span>
+                    <p className={cn('text-xs font-black', isMissed ? 'text-tertiary' : 'text-on-surface')}>
+                      {isMissed ? '−' : ''}{formatINR(Math.abs(tx.amount))}
+                    </p>
+                    <p className="text-xs font-bold text-secondary">{formatINR(tx.runningTotal)}</p>
+                    <button
+                      onClick={() => setEditingSIP(sips.find((s) => s.id === tx.sip_id) ?? null)}
+                      className="text-outline hover:text-primary-fixed-dim transition-colors"
+                      title="Edit SIP"
+                    >
+                      <span className="material-symbols-outlined text-sm">edit</span>
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Card>
