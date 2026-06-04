@@ -535,21 +535,23 @@ export default function PPFPage() {
 
             <AnimatePresence>
               {addingNew && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mb-4">
-                  <div className="p-5 rounded-xl bg-primary/8 ring-1 ring-primary/20 grid grid-cols-2 gap-4 mb-2">
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mb-4" style={{ overflow: 'hidden' }}>
+                  <div className="p-5 rounded-xl grid grid-cols-2 gap-4 mb-2" style={{ background: 'rgba(13,19,34,0.8)', border: '1px solid rgba(77,130,255,0.25)' }}>
                     <div>
-                      <label className="block text-[9px] font-black uppercase tracking-widest text-outline mb-1">Deposit Date</label>
+                      <label className={labelCls}>Deposit Date</label>
                       <input type="date" value={newEntry.date} onChange={e => setNewEntry(p => ({ ...p, date: e.target.value }))}
-                        className="w-full bg-surface-container-highest/40 rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary-container [color-scheme:dark]" />
+                        className={inputCls + ' [color-scheme:dark]'} style={inputStyle} />
                     </div>
                     <div>
-                      <label className="block text-[9px] font-black uppercase tracking-widest text-outline mb-1">Amount (₹, max 1,50,000)</label>
+                      <label className={labelCls}>Amount (max ₹1,50,000)</label>
                       <input type="number" max={150000} value={newEntry.amount} onChange={e => setNewEntry(p => ({ ...p, amount: e.target.value }))}
-                        className="w-full bg-surface-container-highest/40 rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary-container" />
+                        className={inputCls} style={inputStyle} />
                     </div>
                     <div className="col-span-2 flex gap-2">
-                      <button onClick={addContribution} className="flex-1 h-9 rounded-lg text-[9px] font-black uppercase tracking-widest bg-secondary/15 text-secondary hover:bg-secondary/25 transition-colors">Save</button>
-                      <button onClick={() => setAddingNew(false)} className="flex-1 h-9 rounded-lg text-[9px] font-black uppercase tracking-widest bg-surface-container-highest/30 text-outline hover:text-on-surface transition-colors">Cancel</button>
+                      <button onClick={addContribution} className="flex-1 h-10 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all hover:scale-[1.01]"
+                        style={{ background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)', color: '#001a42', boxShadow: '0 0 20px rgba(173,198,255,0.2)' }}>Save</button>
+                      <button onClick={() => setAddingNew(false)} className="flex-1 h-10 rounded-lg text-[9px] font-black uppercase tracking-widest text-outline hover:text-on-surface transition-colors"
+                        style={{ background: '#1e2538', border: '1px solid #2f3445' }}>Cancel</button>
                     </div>
                   </div>
                 </motion.div>
@@ -560,7 +562,7 @@ export default function PPFPage() {
               <div className="space-y-1">
                 {/* Header */}
                 <div className="grid grid-cols-[1fr_1.2fr_1fr_1.4fr_1fr_56px] gap-3 px-4 pb-2 border-b border-outline-variant/10">
-                  {['FY', 'Date', 'Deposit', 'Interest', 'Balance', ''].map(h => (
+                  {['FY', 'Date', 'Deposit', 'Est. Interest', 'Balance', ''].map(h => (
                     <p key={h} className="text-[9px] font-black uppercase tracking-widest text-outline">{h}</p>
                   ))}
                 </div>
@@ -620,7 +622,10 @@ export default function PPFPage() {
                         <p className="text-[10px] font-bold text-outline">{row.fy}</p>
                         <p className="text-[10px] text-on-surface-variant">{row.deposit_date}</p>
                         <p className="text-xs font-bold text-on-surface">{formatINR(row.amount)}</p>
-                        <p className="text-[10px] text-outline/40">—</p>
+                        <div>
+                          <p className="text-xs font-bold text-gold">~{formatINR(Math.round(row.amount * row.interest_rate / 1200))}</p>
+                          <p className="text-[8px] text-outline mt-0.5">per month</p>
+                        </div>
                         <p className="text-xs text-on-surface-variant">{formatINR(row.closing_balance)}</p>
                         <div className="flex gap-1 justify-end">
                           <button onClick={() => setEditingContribution(row)} className="text-outline hover:text-primary-fixed-dim transition-colors">
