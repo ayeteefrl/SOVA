@@ -564,6 +564,9 @@ export default function MFPage() {
     if (res.ok) {
       const updated = await res.json();
       setSips((prev) => prev.map((s) => (s.id === id ? updated : s)));
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(`Save failed: ${err.error ?? res.statusText}. Check that all Supabase migrations have been run.`);
     }
   }
 
