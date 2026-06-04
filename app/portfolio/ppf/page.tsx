@@ -13,6 +13,12 @@ import { createPortal } from 'react-dom';
 
 const MAX_ANNUAL = 150000;
 
+/* ── Date display helper ────────────────────────────────────────────── */
+function fmtDate(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-');
+  return `${d}-${m}-${y}`;
+}
+
 /* ── FY helper ──────────────────────────────────────────────────────── */
 // Indian FY: April 1 → March 31. Jan/Feb/Mar belong to the previous year's FY.
 function getFY(dateStr: string): string {
@@ -325,8 +331,21 @@ export default function PPFPage() {
   const [newEntry, setNewEntry] = useState({ date: '', amount: '' });
   // null = auto-derive from first deposit; number = user has manually overridden
   const [maturityYearOverride, setMaturityYearOverride] = useState<number | null>(null);
+  const [sortField, setSortField] = useState<'fy' | 'date'>('fy');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const currentYear = new Date().getFullYear();
+
+  // Persist maturity year override across sessions
+  useEffect(() => {
+    const saved = localStorage.getItem('ppf_maturity_override');
+    if (saved) setMaturityYearOverride(parseInt(saved));
+  }, []);
+
+  const handleSetMaturityOverride = (val: number) => {
+    setMaturityYearOverride(val);
+    localStorage.setItem('ppf_maturity_override', String(val));
+  };
 
   const fetchData = useCallback(async () => {
     const [contribRes, rateRes] = await Promise.all([fetch('/api/ppf'), fetch('/api/ppf/rate')]);
@@ -357,6 +376,28 @@ export default function PPFPage() {
   const yearsLeft = maturityYear - currentYear;
 
   const processedRows = processContributions(contributions, ppfRate);
+
+  // Sort ledger rows: FY groups stay intact; only their order (and deposit order within) changes
+  const sortedRows = (() => {
+    const fyGroups = new Map<string, ProcessedRow[]>();
+    for (const row of processedRows) {
+      if (!fyGroups.has(row.fy)) fyGroups.set(row.fy, []);
+      fyGroups.get(row.fy)!.push(row);
+    }
+    let fyKeys = Array.from(fyGroups.keys()).sort();
+    if (sortField === 'fy' && sortDir === 'desc') fyKeys = fyKeys.reverse();
+    if (sortField === 'date') {
+      for (const [fy, rows] of fyGroups) {
+        const deps = rows.filter(r => r.rowType === 'deposit')
+          .sort((a, b) => sortDir === 'asc'
+            ? a.deposit_date.localeCompare(b.deposit_date)
+            : b.deposit_date.localeCompare(a.deposit_date));
+        const rest = rows.filter(r => r.rowType !== 'deposit');
+        fyGroups.set(fy, [...deps, ...rest]);
+      }
+    }
+    return fyKeys.flatMap(fy => fyGroups.get(fy)!);
+  })();
 
   const totalDeposited = processedRows.filter(r => r.rowType === 'deposit').reduce((a, c) => a + c.amount, 0);
   const totalInterest = processedRows.filter(r => r.rowType !== 'deposit').reduce((a, c) => a + c.interest_for_year, 0);
@@ -450,7 +491,7 @@ export default function PPFPage() {
               sub={`Matures ${maturityYear} · opened FY ${openingFYStart}-${String(openingFYStart + 1).slice(-2)}`}
               onChange={v => {
                 const yrs = Math.max(1, Math.round(v));
-                setMaturityYearOverride(currentYear + yrs);
+                handleSetMaturityOverride(currentYear + yrs);
               }}
             />
           </div>
@@ -560,14 +601,28 @@ export default function PPFPage() {
 
             {processedRows.length > 0 && (
               <div className="space-y-1">
-                {/* Header */}
+                {/* Header with sort controls */}
                 <div className="grid grid-cols-[1fr_1.2fr_1fr_1.4fr_1fr_56px] gap-3 px-4 pb-2 border-b border-outline-variant/10">
-                  {['FY', 'Date', 'Deposit', 'Est. Interest', 'Balance', ''].map(h => (
-                    <p key={h} className="text-[9px] font-black uppercase tracking-widest text-outline">{h}</p>
-                  ))}
+                  {(['FY', 'Date', 'Deposit', 'Est. Interest', 'Balance', ''] as const).map(h => {
+                    const field = h === 'FY' ? 'fy' : h === 'Date' ? 'date' : null;
+                    const active = field && sortField === field;
+                    return field ? (
+                      <button key={h} onClick={() => {
+                        if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                        else { setSortField(field); setSortDir('asc'); }
+                      }} className="flex items-center gap-1 group">
+                        <p className={`text-[9px] font-black uppercase tracking-widest transition-colors ${active ? 'text-primary-fixed-dim' : 'text-outline group-hover:text-on-surface-variant'}`}>{h}</p>
+                        <span className={`material-symbols-outlined text-[10px] transition-colors ${active ? 'text-primary-fixed-dim' : 'text-outline/40 group-hover:text-outline'}`}>
+                          {active && sortDir === 'desc' ? 'arrow_downward' : 'arrow_upward'}
+                        </span>
+                      </button>
+                    ) : (
+                      <p key={h} className="text-[9px] font-black uppercase tracking-widest text-outline">{h}</p>
+                    );
+                  })}
                 </div>
 
-                {processedRows.map(row => {
+                {sortedRows.map(row => {
                   if (row.rowType === 'year-end-credited') {
                     // Green row — actual interest credited on Mar 31, computed from deposit data
                     return (
@@ -578,7 +633,7 @@ export default function PPFPage() {
                         <p className="text-[9px] font-bold text-outline">{row.fy}</p>
                         <p className="text-[9px] font-bold text-secondary/70 flex items-center gap-1">
                           <span className="material-symbols-outlined text-[10px]">auto_awesome</span>
-                          Mar 31 Credit
+                          {fmtDate(row.deposit_date)}
                         </p>
                         <p className="text-[10px] text-outline/40">—</p>
                         <p className="text-xs font-bold text-secondary">+{formatINR(row.interest_for_year)}</p>
@@ -598,7 +653,7 @@ export default function PPFPage() {
                         <p className="text-[9px] font-bold text-outline">{row.fy}</p>
                         <p className="text-[9px] font-bold text-gold/70 flex items-center gap-1">
                           <span className="material-symbols-outlined text-[10px]">schedule</span>
-                          Est. YTD
+                          Est. YTD · {fmtDate(row.deposit_date)}
                         </p>
                         <p className="text-[10px] text-outline/40">—</p>
                         <div>
@@ -620,7 +675,7 @@ export default function PPFPage() {
                     <motion.div key={row.id} layout className="rounded-lg overflow-hidden">
                       <div className="grid grid-cols-[1fr_1.2fr_1fr_1.4fr_1fr_56px] gap-3 px-4 py-3 items-center rounded-lg transition-colors hover:bg-surface-container-highest/20">
                         <p className="text-[10px] font-bold text-outline">{row.fy}</p>
-                        <p className="text-[10px] text-on-surface-variant">{row.deposit_date}</p>
+                        <p className="text-[10px] text-on-surface-variant">{fmtDate(row.deposit_date)}</p>
                         <p className="text-xs font-bold text-on-surface">{formatINR(row.amount)}</p>
                         <div>
                           <p className="text-xs font-bold text-gold">~{formatINR(Math.round(row.amount * row.interest_rate / 1200))}</p>
