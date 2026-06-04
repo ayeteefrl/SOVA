@@ -17,9 +17,10 @@ type Props = {
   accent?: 'neutral' | 'positive' | 'negative' | 'gold' | 'primary';
   icon?: string;
   loading?: boolean;
+  onChange?: (value: number) => void;
 };
 
-export function KPICard({ label, value, format = 'inr', delta, sub, accent = 'neutral', icon, loading }: Props) {
+export function KPICard({ label, value, format = 'inr', delta, sub, accent = 'neutral', icon, loading, onChange }: Props) {
   const fmt = useFmt();
   const [editMode, setEditMode] = useState(false);
   const [localValue, setLocalValue] = useState(value);
@@ -53,7 +54,10 @@ export function KPICard({ label, value, format = 'inr', delta, sub, accent = 'ne
 
   const handleSave = () => {
     const parsed = parseFloat(inputVal.replace(/[^0-9.-]/g, ''));
-    if (!isNaN(parsed)) setLocalValue(parsed);
+    if (!isNaN(parsed)) {
+      setLocalValue(parsed);
+      onChange?.(parsed);
+    }
     setEditMode(false);
   };
 
