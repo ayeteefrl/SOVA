@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { AllocationDonut } from '@/components/charts/AllocationDonut';
 import { TopActivePositions } from '@/components/TopActivePositions';
@@ -10,11 +11,11 @@ import { motion } from 'framer-motion';
 
 /* Target allocation (strategic) vs current */
 const targetAllocation: Record<string, number> = {
-  Equity: 60,
+  Equity: 55,
   'Mutual Funds': 20,
   ETF: 10,
-  'Real Estate': 15,
-  'Cash / Liquidity': 5,
+  'PPF / Fixed Income': 10,
+  'Real Estate': 5,
 };
 
 // ─── metric chips ─────────────────────────────────────────────────────────────
@@ -70,16 +71,32 @@ function MetricChip({
 // ─── page ─────────────────────────────────────────────────────────────────────
 export default function PortfolioPage() {
   const { equityHoldings, mutualFundHoldings, etfHoldings } = useHoldings();
+  const [ppfCorpus, setPpfCorpus] = useState(0);
+
+  // Fetch PPF corpus so it is included in total net worth
+  useEffect(() => {
+    fetch('/api/ppf/corpus')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setPpfCorpus(d.corpus ?? 0); })
+      .catch(() => {});
+  }, []);
+
+  const equityValue = equityHoldings.reduce((s, h) => s + h.value, 0);
+  const mfValue     = mutualFundHoldings.reduce((s, h) => s + h.value, 0);
+  const etfValue    = etfHoldings.reduce((s, h) => s + h.value, 0);
 
   const allHoldings = [...equityHoldings, ...mutualFundHoldings, ...etfHoldings];
-  const netWorth = allHoldings.reduce((s, h) => s + h.value, 0);
+  // Net worth includes PPF corpus (principal + accrued interest)
+  const netWorth = equityValue + mfValue + etfValue + ppfCorpus;
+  // Day change is market-only; PPF has no intraday movement
   const dayChange = allHoldings.reduce((s, h) => s + (h.dayAbs ?? (h.value * h.daily) / 100), 0);
   const dayChangePct = netWorth > 0 ? (dayChange / netWorth) * 100 : 0;
 
   const allocation = [
-    { name: 'Equity', value: equityHoldings.reduce((s, h) => s + h.value, 0), color: '#adc6ff' },
-    { name: 'Mutual Funds', value: mutualFundHoldings.reduce((s, h) => s + h.value, 0), color: '#4edea3' },
-    { name: 'ETF', value: etfHoldings.reduce((s, h) => s + h.value, 0), color: '#8b9dff' },
+    { name: 'Equity',              value: equityValue, color: '#adc6ff' },
+    { name: 'Mutual Funds',        value: mfValue,     color: '#4edea3' },
+    { name: 'ETF',                 value: etfValue,    color: '#8b9dff' },
+    { name: 'PPF / Fixed Income',  value: ppfCorpus,   color: '#D4AF37' },
   ];
 
   return (
