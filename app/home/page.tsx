@@ -11,7 +11,6 @@ import { SectorBars } from '@/components/charts/SectorBars';
 import { TradeList } from '@/components/TradeList';
 import { useUser } from '@/components/UserContext';
 import { useHoldings } from '@/components/HoldingsContext';
-import { ReconnectPopup } from '@/components/ReconnectPopup';
 import { formatINR, cn } from '@/lib/utils';
 import { computeRebalancePlan, formatRebalanceSuggestion } from '@/lib/rebalance';
 import Link from 'next/link';
@@ -182,7 +181,7 @@ export default function HomePage() {
   const [ppfDeposited, setPpfDeposited] = useState(0);
 
   const { firstName } = useUser();
-  const { equityHoldings, mutualFundHoldings, etfHoldings, isLoading, intradayReady, needsKiteReconnect } = useHoldings();
+  const { equityHoldings, mutualFundHoldings, etfHoldings, isLoading, intradayReady, isShowingCachedData } = useHoldings();
 
   // Fetch PPF corpus so it is included in total net worth
   useEffect(() => {
@@ -248,8 +247,6 @@ export default function HomePage() {
   return (
     <div className="p-4 md:p-8 space-y-5 md:space-y-8 pb-16 relative">
 
-      <ReconnectPopup />
-
       <motion.section
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -273,8 +270,8 @@ export default function HomePage() {
                   {isPositiveDay ? 'up' : 'down'} {Math.abs(dayChangePct).toFixed(2)}%
                 </span>{' '}
                 on the day — {formatINR(Math.abs(dayChange), { compact: true })} net movement.
-                {needsKiteReconnect && (
-                  <span className="text-outline"> (Cached data — reconnect Zerodha for live figures.)</span>
+                {isShowingCachedData && (
+                  <span className="text-outline"> Cached figures — reconnect your broker for live data.</span>
                 )}
               </p>
             ) : (

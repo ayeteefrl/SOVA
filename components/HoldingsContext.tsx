@@ -190,6 +190,23 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       const enrichedManual = await enrichWithLivePrices(manualEquity);
 
       const equity: Holding[] = [...deduped, ...enrichedCustom, ...enrichedManual];
+
+      // Safety net: if every live source returned zero holdings but we have a
+      // non-empty localStorage cache, it almost certainly means the broker token
+      // expired mid-session (the >= 0 bug in fetchBroker can also land us here).
+      // Preserve the last-known state and show the stale-data banner instead of
+      // blanking the UI.
+      const cachedEquityCount = (() => {
+        try {
+          const v = localStorage.getItem('sova-equity-holdings');
+          return v ? (JSON.parse(v) as unknown[]).length : 0;
+        } catch { return 0; }
+      })();
+      if (equity.length === 0 && cachedEquityCount > 0) {
+        loadFromCache([]);
+        return; // finally block still runs → setIsLoading(false)
+      }
+
       setEquityHoldings(equity);
       setIntradayReady(true); // batched with setEquityHoldings — single render with correct dayAbs
       const freshTs = new Date().toISOString();
@@ -527,7 +544,10 @@ async function fetchAllSources(): Promise<{
       const res = await fetch(path);
       const data = await res.json();
       if (data.error?.includes('unauthorized')) return { equity: [], connected: false };
-      return { equity: (data.holdings ?? []) as Holding[], connected: (data.holdings?.length ?? 0) >= 0 && !data.error };
+      // connected = API responded OK without an auth/error, regardless of holdings count.
+      // Previously used `>= 0` which is always true and falsely marked empty-holdings
+      // brokers as "connected", bypassing the cache fallback when Zerodha expired.
+      return { equity: (data.holdings ?? []) as Holding[], connected: res.ok && !data.error };
     } catch {
       return { equity: [], connected: false };
     }

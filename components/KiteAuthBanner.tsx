@@ -2,23 +2,33 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
 import { useHoldings } from './HoldingsContext';
 
-export function KiteAuthBanner() {
-  const { needsKiteReconnect, needsAngelReconnect } = useHoldings();
-  const [toast, setToast] = useState<'kite' | 'angel' | 'upstox' | 'hdfc' | null>(null);
+const DISMISS_KEY = 'sova-stale-banner-dismissed';
 
+export function KiteAuthBanner() {
+  const {
+    needsKiteReconnect,
+    needsAngelReconnect,
+    needsUpstoxReconnect,
+    needsGrowwReconnect,
+    needsHdfcReconnect,
+    needsMotilaReconnect,
+    isShowingCachedData,
+    cacheTimestamp,
+  } = useHoldings();
+
+  const [toast, setToast]       = useState<'kite' | 'angel' | 'upstox' | 'hdfc' | null>(null);
+  const [dismissed, setDismissed] = useState(true);
+
+  // Success toast — fires once after OAuth redirect
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('kite_auth') === 'success') {
-      setToast('kite');
-    } else if (params.get('angel_auth') === 'success') {
-      setToast('angel');
-    } else if (params.get('upstox_auth') === 'success') {
-      setToast('upstox');
-    } else if (params.get('hdfc_auth') === 'success') {
-      setToast('hdfc');
-    }
+    if (params.get('kite_auth') === 'success')   setToast('kite');
+    else if (params.get('angel_auth') === 'success')  setToast('angel');
+    else if (params.get('upstox_auth') === 'success') setToast('upstox');
+    else if (params.get('hdfc_auth') === 'success')   setToast('hdfc');
     if ([...params.keys()].some((k) => k.endsWith('_auth'))) {
       window.history.replaceState({}, '', window.location.pathname);
     }
@@ -31,13 +41,63 @@ export function KiteAuthBanner() {
     }
   }, [toast]);
 
-  // Only show the reconnect banner if ALL brokers need reconnecting — if even
-  // one broker is working, the user already has live data and the banner adds noise.
-  const showReconnectBanner = needsKiteReconnect && needsAngelReconnect;
+  // Reset the dismiss flag each calendar day so the banner reappears automatically
+  // the next morning when tokens have expired overnight.
+  useEffect(() => {
+    const saved = localStorage.getItem(DISMISS_KEY);
+    const today = new Date().toISOString().slice(0, 10);
+    if (saved === today) {
+      setDismissed(true);
+    } else {
+      localStorage.removeItem(DISMISS_KEY);
+      setDismissed(false);
+    }
+  }, []);
+
+  function handleDismiss() {
+    localStorage.setItem(DISMISS_KEY, new Date().toISOString().slice(0, 10));
+    setDismissed(true);
+  }
+
+  // All integrations that currently need reconnecting
+  const disconnected = [
+    needsKiteReconnect   && 'Zerodha',
+    needsAngelReconnect  && 'Angel One',
+    needsUpstoxReconnect && 'Upstox',
+    needsGrowwReconnect  && 'Groww',
+    needsHdfcReconnect   && 'HDFC',
+    needsMotilaReconnect && 'Motilal Oswal',
+  ].filter(Boolean) as string[];
+
+  // Human-readable "as of" label for the stale-data timestamp
+  const asOfLabel = (() => {
+    if (!cacheTimestamp) return null;
+    try {
+      const d    = new Date(cacheTimestamp);
+      const today     = new Date().toISOString().slice(0, 10);
+      const tsDate    = d.toISOString().slice(0, 10);
+      const timeStr   = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+      if (tsDate === today) return `last synced today at ${timeStr}`;
+      const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+      if (tsDate === yesterday) return `last synced yesterday at ${timeStr}`;
+      return `last synced ${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} at ${timeStr}`;
+    } catch { return null; }
+  })();
+
+  // Show the stale-data banner when:
+  //   • We are actively serving cached data (broker tokens have expired), AND
+  //   • At least one integration needs reconnecting, AND
+  //   • The user has not dismissed it today
+  const showStaleBanner = isShowingCachedData && disconnected.length > 0 && !dismissed;
+
+  const bannerLabel =
+    disconnected.length === 1
+      ? `${disconnected[0]} token expired`
+      : `${disconnected.length} integrations need reconnecting`;
 
   return (
     <>
-      {/* Success toast — floats top-right, auto-dismisses */}
+      {/* ── Success toast ─────────────────────────────────────────────── */}
       <AnimatePresence>
         {toast && (
           <motion.div
@@ -52,65 +112,69 @@ export function KiteAuthBanner() {
             <div>
               <p className="text-[11px] font-black uppercase tracking-widest text-secondary">Connected</p>
               <p className="text-[10px] text-on-surface-variant">
-                {toast === 'angel' ? 'Angel One live data active' : toast === 'upstox' ? 'Upstox live data active' : toast === 'hdfc' ? 'HDFC Securities live data active' : 'Zerodha live data active'}
+                {toast === 'angel'  ? 'Angel One live data active'
+                : toast === 'upstox' ? 'Upstox live data active'
+                : toast === 'hdfc'   ? 'HDFC Securities live data active'
+                :                      'Zerodha live data active'}
               </p>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Reconnect banner — only shown when no broker is providing live data */}
+      {/* ── Stale-data banner ──────────────────────────────────────────── */}
+      {/* Shown on every page whenever cached/stale holdings are being displayed */}
       <AnimatePresence>
-        {showReconnectBanner && (
+        {showStaleBanner && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
             <div
-              className="flex items-center justify-between gap-4 px-5 py-3"
+              className="flex items-center gap-3 px-4 md:px-6 py-2.5"
               style={{
-                background: 'linear-gradient(90deg, rgba(13,19,34,0.95) 0%, rgba(77,142,255,0.08) 100%)',
-                borderBottom: '1px solid rgba(173,198,255,0.12)',
+                background: 'linear-gradient(90deg, rgba(13,19,34,0.96) 0%, rgba(212,175,55,0.06) 100%)',
+                borderBottom: '1px solid rgba(212,175,55,0.2)',
+                backdropFilter: 'blur(12px)',
               }}
             >
-              <div className="flex items-center gap-3 min-w-0">
-                <span
-                  className="w-2 h-2 rounded-full shrink-0 animate-pulse"
-                  style={{ background: '#D4AF37', boxShadow: '0 0 8px #D4AF3760' }}
-                />
-                <p className="text-[11px] font-bold text-on-surface-variant truncate">
-                  Connect a broker account to load live portfolio data
+              {/* Pulsing amber dot */}
+              <span
+                className="w-1.5 h-1.5 rounded-full shrink-0 animate-pulse"
+                style={{ background: '#D4AF37', boxShadow: '0 0 8px #D4AF3760' }}
+              />
+
+              {/* Message */}
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold text-on-surface-variant">
+                  <span className="text-gold font-black">{bannerLabel}</span>
+                  {' '}— showing last known portfolio data.
+                  {asOfLabel && (
+                    <span className="text-outline font-semibold"> Data {asOfLabel}. Values may be outdated.</span>
+                  )}
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => { window.location.href = '/api/auth/kite/login'; }}
-                  className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all hover:scale-[1.02]"
-                  style={{
-                    background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)',
-                    color: '#001a42',
-                    boxShadow: '0 0 16px rgba(173,198,255,0.2)',
-                  }}
-                >
-                  <span className="material-symbols-outlined text-sm">link</span>
-                  Zerodha
-                </button>
-                <button
-                  onClick={() => { window.location.href = '/api/auth/angel/login'; }}
-                  className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all hover:scale-[1.02]"
-                  style={{
-                    background: 'linear-gradient(135deg, #ff6b35 0%, #ffb347 100%)',
-                    color: '#1a0800',
-                    boxShadow: '0 0 16px rgba(255,107,53,0.2)',
-                  }}
-                >
-                  <span className="material-symbols-outlined text-sm">link</span>
-                  Angel One
-                </button>
-              </div>
+
+              {/* Reconnect link */}
+              <Link
+                href="/settings#integrations"
+                className="shrink-0 flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-gold hover:text-gold/80 transition-colors"
+              >
+                Reconnect
+                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              </Link>
+
+              {/* Dismiss for today */}
+              <button
+                onClick={handleDismiss}
+                aria-label="Dismiss until tomorrow"
+                className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-outline hover:text-on-surface hover:bg-surface-container-highest/40 transition-colors"
+              >
+                <span className="material-symbols-outlined text-base">close</span>
+              </button>
             </div>
           </motion.div>
         )}
