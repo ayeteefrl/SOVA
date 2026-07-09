@@ -1081,16 +1081,7 @@ export default function SettingsPage() {
           {/* SOVA logo */}
           <div className="flex items-center gap-3 px-2 py-3 mb-3 border-b border-outline-variant/10">
             <div className="w-9 h-9 shrink-0">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-full h-full">
-                <defs>
-                  <linearGradient id="sova-settings-g" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#adc6ff" />
-                    <stop offset="100%" stopColor="#D4AF37" />
-                  </linearGradient>
-                </defs>
-                <rect width="32" height="32" rx="6" fill="#0d1322" />
-                <path d="M8 22 L8 10 L16 18 L24 10 L24 22" fill="none" stroke="url(#sova-settings-g)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <img src="/sovalogo.svg" alt="SOVA" className="w-full h-full object-contain" />
             </div>
             <div>
               <p className="text-sm font-black tracking-tighter gradient-text-primary">SOVA</p>
