@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PerformanceChart } from './PerformanceChart';
 import { SectorBars } from './SectorBars';
 import { useHoldings } from '@/components/HoldingsContext';
+import { usePortfolioTotals } from '@/lib/usePortfolioTotals';
 
 // ─── colour palettes ──────────────────────────────────────────────────────────
 const equityColors = [
@@ -41,23 +42,21 @@ type PieView = typeof pieViews[number];
 
 // ─── component ────────────────────────────────────────────────────────────────
 export function AllocationDonut() {
-  const { equityHoldings, mutualFundHoldings, etfHoldings } = useHoldings();
+  const { equityHoldings } = useHoldings();
+  const { equityValue: equityTotal, mfValue: mfTotal, etfValue: etfTotal, ppfValue, realEstateValue, netWorth: portfolioTotal } = usePortfolioTotals();
   const [chartType, setChartType] = useState<ChartType>('PIE');
   const [pieView, setPieView] = useState<PieView>('EQUITY');
   const [active, setActive] = useState(0);
 
   useEffect(() => { setActive(0); }, [pieView]);
 
-  // ─── derive allocation from live holdings ────────────────────────────────────
-  const equityTotal = equityHoldings.reduce((s, h) => s + h.value, 0);
-  const mfTotal = mutualFundHoldings.reduce((s, h) => s + h.value, 0);
-  const etfTotal = etfHoldings.reduce((s, h) => s + h.value, 0);
-  const portfolioTotal = equityTotal + mfTotal + etfTotal;
-
+  // ─── derive allocation from live holdings — matches Home/Dashboard net worth ──
   const allocation = [
     { name: 'Equity', value: equityTotal, color: allocationColors[0] },
     { name: 'Mutual Funds', value: mfTotal, color: allocationColors[1] },
     { name: 'ETF', value: etfTotal, color: allocationColors[2] },
+    { name: 'PPF', value: ppfValue, color: allocationColors[3] },
+    { name: 'Real Estate', value: realEstateValue, color: allocationColors[4] },
   ].filter((a) => a.value > 0);
 
   const equityData = equityHoldings.map((h, i) => ({

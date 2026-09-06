@@ -192,3 +192,26 @@ ALTER TABLE user_trades ADD CONSTRAINT user_trades_action_check CHECK (
     'Interest','Rebalance'
   )
 );
+
+-- ─── Portfolio snapshots table (create if it doesn't already exist) ──────────
+-- Backfilled here for tracking — this table already exists in production,
+-- created outside this file. CREATE TABLE IF NOT EXISTS is a no-op if so.
+CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  snapshot_date  DATE NOT NULL,
+  net_worth      NUMERIC(16,2) NOT NULL DEFAULT 0,
+  total_invested NUMERIC(16,2) NOT NULL DEFAULT 0,
+  equity_value   NUMERIC(16,2) NOT NULL DEFAULT 0,
+  mf_value       NUMERIC(16,2) NOT NULL DEFAULT 0,
+  etf_value      NUMERIC(16,2) NOT NULL DEFAULT 0,
+  created_at     TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (user_id, snapshot_date)
+);
+
+-- ─── Net worth was missing PPF and Real Estate ────────────────────────────────
+-- Home/Dashboard net worth previously only summed Equity + Mutual Fund + ETF
+-- (+ PPF on Home only) and never included Real Estate at all. Snapshots now
+-- carry both so "Total Portfolio Performance" reflects the full net worth.
+ALTER TABLE portfolio_snapshots ADD COLUMN IF NOT EXISTS ppf_value NUMERIC(16,2) NOT NULL DEFAULT 0;
+ALTER TABLE portfolio_snapshots ADD COLUMN IF NOT EXISTS real_estate_value NUMERIC(16,2) NOT NULL DEFAULT 0;

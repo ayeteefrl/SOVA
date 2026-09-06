@@ -11,6 +11,7 @@ import { SectorBars } from '@/components/charts/SectorBars';
 import { TradeList } from '@/components/TradeList';
 import { useUser } from '@/components/UserContext';
 import { useHoldings } from '@/components/HoldingsContext';
+import { usePortfolioTotals } from '@/lib/usePortfolioTotals';
 import { formatINR, cn } from '@/lib/utils';
 import { computeRebalancePlan, formatRebalanceSuggestion } from '@/lib/rebalance';
 import Link from 'next/link';
@@ -177,53 +178,25 @@ function RebalanceModal({ onClose }: { onClose: () => void }) {
 /* ─── Page ────────────────────────────────────────────────────── */
 export default function HomePage() {
   const [showRebalance, setShowRebalance] = useState(false);
-  const [ppfCorpus, setPpfCorpus]       = useState(0);
-  const [ppfDeposited, setPpfDeposited] = useState(0);
 
   const { firstName } = useUser();
-  const { equityHoldings, mutualFundHoldings, etfHoldings, isLoading, intradayReady, isShowingCachedData } = useHoldings();
+  const { equityHoldings, isLoading: holdingsLoading, intradayReady, isShowingCachedData } = useHoldings();
+  const {
+    equityValue, mfValue, etfValue, ppfValue, realEstateValue,
+    netWorth, totalInvested, allTimeGain, isLoading: totalsLoading,
+    dayChange, dayChangePct,
+  } = usePortfolioTotals();
 
-  // Fetch PPF corpus so it is included in total net worth
-  useEffect(() => {
-    fetch('/api/ppf/corpus')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d) {
-          setPpfCorpus(d.corpus ?? 0);
-          setPpfDeposited(d.totalDeposited ?? 0);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  const equityValue    = equityHoldings.reduce((a, h) => a + h.value, 0);
-  const mfValue        = mutualFundHoldings.reduce((a, h) => a + h.value, 0);
-  const etfValue       = etfHoldings.reduce((a, h) => a + h.value, 0);
-
-  // Net worth = all market holdings + PPF corpus (deposits + accrued interest)
-  const netWorth       = equityValue + mfValue + etfValue + ppfCorpus;
-
-  const totalInvested  =
-    equityHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
-    mutualFundHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
-    etfHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
-    ppfDeposited; // PPF principal = money actually deposited
-
-  // Day change covers all market instruments; PPF has no intraday price movement
-  const dayChange      =
-    equityHoldings.reduce((a, h) => a + (h.dayAbs ?? (h.value * h.daily) / 100), 0) +
-    mutualFundHoldings.reduce((a, h) => a + (h.dayAbs ?? (h.value * h.daily) / 100), 0) +
-    etfHoldings.reduce((a, h) => a + (h.dayAbs ?? (h.value * h.daily) / 100), 0);
-  const dayChangePct   = netWorth > 0 ? (dayChange / netWorth) * 100 : 0;
-  const allTimeGain    = netWorth - totalInvested;
-  const isPositiveDay  = dayChange >= 0;
+  const isLoading = holdingsLoading || totalsLoading;
+  const isPositiveDay = dayChange >= 0;
 
   // Net worth sub-line: show per-sleeve breakdown
   const nwBreakdown = [
-    equityValue > 0 ? `Eq ${formatINR(equityValue, { compact: true })}` : '',
-    mfValue     > 0 ? `MF ${formatINR(mfValue,     { compact: true })}` : '',
-    etfValue    > 0 ? `ETF ${formatINR(etfValue,   { compact: true })}` : '',
-    ppfCorpus   > 0 ? `PPF ${formatINR(ppfCorpus,  { compact: true })}` : '',
+    equityValue      > 0 ? `Eq ${formatINR(equityValue,      { compact: true })}` : '',
+    mfValue          > 0 ? `MF ${formatINR(mfValue,          { compact: true })}` : '',
+    etfValue         > 0 ? `ETF ${formatINR(etfValue,        { compact: true })}` : '',
+    ppfValue         > 0 ? `PPF ${formatINR(ppfValue,        { compact: true })}` : '',
+    realEstateValue  > 0 ? `RE ${formatINR(realEstateValue,  { compact: true })}` : '',
   ].filter(Boolean).join(' · ');
 
   const sectorMap = new Map<string, number>();
@@ -303,7 +276,7 @@ export default function HomePage() {
         variants={staggerVariants}
         initial="hidden"
         animate="visible"
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5"
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
       >
         <KPICard
           label="Net Worth"
@@ -321,7 +294,7 @@ export default function HomePage() {
           delta={dayChangePct}
           icon="trending_up"
           loading={isLoading || !intradayReady}
-          sub="Equity · MF · ETF"
+          sub="Equity sleeve"
         />
         <KPICard
           label="All-Time Gain"
@@ -331,15 +304,6 @@ export default function HomePage() {
           accent={allTimeGain >= 0 ? 'positive' : 'negative'}
           loading={isLoading}
           sub={totalInvested > 0 ? `on ${formatINR(totalInvested, { compact: true })} invested` : undefined}
-        />
-        <KPICard
-          label="Fixed Income"
-          value={ppfCorpus}
-          format="inr"
-          accent="gold"
-          icon="account_balance"
-          loading={isLoading}
-          sub={ppfDeposited > 0 ? `₹${(ppfCorpus - ppfDeposited).toLocaleString('en-IN', { maximumFractionDigits: 0 })} interest earned` : 'PPF corpus'}
         />
       </motion.div>
 

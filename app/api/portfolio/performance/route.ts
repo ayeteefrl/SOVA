@@ -29,11 +29,13 @@ export async function GET() {
     .eq('user_id', session.userId)
     .order('trade_date', { ascending: true });
 
+  const BUY_ACTIONS  = ['Buy', 'SIP', 'Lumpsum', 'Deposit', 'Interest Credit', 'Appreciation', 'Interest'];
+  const SELL_ACTIONS = ['Sell', 'Redeem', 'Withdrawal', 'Partial Withdrawal'];
   const tradeList = (trades ?? []).map((t) => ({
     date: new Date(t.trade_date),
     amount: Number(t.amount) || 0,
-    isBuy: ['Buy', 'buy'].includes(t.action ?? ''),
-    isSell: ['Sell', 'sell'].includes(t.action ?? ''),
+    isBuy: BUY_ACTIONS.includes(t.action ?? ''),
+    isSell: SELL_ACTIONS.includes(t.action ?? ''),
   }));
 
   // For each month, compute cumulative invested amount at that month's end

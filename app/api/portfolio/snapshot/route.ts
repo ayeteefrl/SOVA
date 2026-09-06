@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { net_worth, total_invested, equity_value, mf_value, etf_value } = await req.json();
+    const { net_worth, total_invested, equity_value, mf_value, etf_value, ppf_value, real_estate_value } = await req.json();
 
     if (typeof net_worth !== 'number') {
       return NextResponse.json({ error: 'net_worth required' }, { status: 400 });
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
     // Upsert — one row per user per day
-    await supabase.from('portfolio_snapshots').upsert({
+    const { error } = await supabase.from('portfolio_snapshots').upsert({
       user_id: session.userId,
       snapshot_date: today,
       net_worth,
@@ -27,7 +27,14 @@ export async function POST(req: NextRequest) {
       equity_value: equity_value ?? 0,
       mf_value: mf_value ?? 0,
       etf_value: etf_value ?? 0,
+      ppf_value: ppf_value ?? 0,
+      real_estate_value: real_estate_value ?? 0,
     }, { onConflict: 'user_id,snapshot_date' });
+
+    if (error) {
+      console.error('Snapshot upsert error:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {

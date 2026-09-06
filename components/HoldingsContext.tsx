@@ -343,39 +343,10 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
     prevNetWorthRef.current = currentNW;
   }, [isLoading, equityHoldings, mutualFundHoldings, etfHoldings]);
 
-  // Save a daily portfolio snapshot once holdings have loaded
-  useEffect(() => {
-    if (isLoading) return;
-    const lastSnap = localStorage.getItem('sova-last-snapshot');
-    const today = new Date().toISOString().slice(0, 10);
-    if (lastSnap === today) return; // already saved today
-
-    const netWorth =
-      equityHoldings.reduce((a, h) => a + h.value, 0) +
-      mutualFundHoldings.reduce((a, h) => a + h.value, 0) +
-      etfHoldings.reduce((a, h) => a + h.value, 0);
-
-    if (netWorth === 0) return; // nothing to snapshot yet
-
-    const totalInvested =
-      equityHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
-      mutualFundHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
-      etfHoldings.reduce((a, h) => a + h.units * h.avgCost, 0);
-
-    fetch('/api/portfolio/snapshot', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        net_worth: netWorth,
-        total_invested: totalInvested,
-        equity_value: equityHoldings.reduce((a, h) => a + h.value, 0),
-        mf_value: mutualFundHoldings.reduce((a, h) => a + h.value, 0),
-        etf_value: etfHoldings.reduce((a, h) => a + h.value, 0),
-      }),
-    })
-      .then((r) => { if (r.ok) localStorage.setItem('sova-last-snapshot', today); })
-      .catch(() => {});
-  }, [isLoading, equityHoldings, mutualFundHoldings, etfHoldings]);
+  // Daily portfolio snapshots are saved by usePortfolioTotals (lib/usePortfolioTotals.ts)
+  // instead of here — that hook has the full net worth (Equity + MF + ETF + PPF +
+  // Real Estate), whereas this context only ever sees Equity/MF/ETF. Saving from both
+  // places would race and could overwrite today's correct snapshot with an incomplete one.
 
   const addHolding = useCallback((holding: Holding, category: 'equity' | 'mf' | 'etf') => {
     // Always mark as manual and give it a stable id.

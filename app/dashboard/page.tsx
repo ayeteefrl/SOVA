@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { formatINR, cn } from '@/lib/utils';
 import { computeRisk } from '@/lib/risk';
 import { useHoldings } from '@/components/HoldingsContext';
+import { usePortfolioTotals } from '@/lib/usePortfolioTotals';
 import {
   computePortfolioMetrics,
   type PortfolioMetrics,
@@ -199,8 +200,6 @@ export default function DashboardPage() {
   const { equityHoldings, mutualFundHoldings, etfHoldings, isLoading: holdingsLoading, intradayReady } = useHoldings();
   const [selectedTaxCandidate, setSelectedTaxCandidate] = useState<TaxCandidate | null>(null);
   const [metrics, setMetrics] = useState<PortfolioMetrics | null>(null);
-  const [ppfCorpus, setPpfCorpus]       = useState(0);
-  const [ppfDeposited, setPpfDeposited] = useState(0);
   const [monthlyPL, setMonthlyPL] = useState<{ label: string; value: number }[]>(() =>
     Array.from({ length: 12 }, (_, i) => {
       const d = new Date();
@@ -209,18 +208,11 @@ export default function DashboardPage() {
     }),
   );
 
-  // Fetch PPF corpus so it is included in total net worth
-  useEffect(() => {
-    fetch('/api/ppf/corpus')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d) {
-          setPpfCorpus(d.corpus ?? 0);
-          setPpfDeposited(d.totalDeposited ?? 0);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const {
+    equityValue, mfValue, etfValue, ppfValue, realEstateValue,
+    netWorth: totalCurrent, totalInvested, allTimeGain: totalReturn, allTimeGainPct: totalReturnPct,
+    dayChange: dayChangeAbs, dayChangePct,
+  } = usePortfolioTotals();
 
   const fetchMonthlyPnl = useCallback(async () => {
     const res = await fetch('/api/trades/monthly-pnl');
@@ -268,32 +260,13 @@ export default function DashboardPage() {
     }))
     .sort((a, b) => b.weight - a.weight);
 
-  // Compute real returns from all holdings (including PPF)
-  const equityValue = equityHoldings.reduce((a, h) => a + h.value, 0);
-  const mfValue = mutualFundHoldings.reduce((a, h) => a + h.value, 0);
-  const etfValue = etfHoldings.reduce((a, h) => a + h.value, 0);
-  // Net worth = all market instruments + PPF corpus (principal + accrued interest)
-  const totalCurrent = equityValue + mfValue + etfValue + ppfCorpus;
-  const totalInvested =
-    equityHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
-    mutualFundHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
-    etfHoldings.reduce((a, h) => a + h.units * h.avgCost, 0) +
-    ppfDeposited; // PPF principal = money actually deposited
-  const totalReturn = totalCurrent - totalInvested;
-  const totalReturnPct = totalInvested > 0 ? (totalReturn / totalInvested) * 100 : 0;
-  // Day change covers market instruments only; PPF has no intraday price movement
-  const dayChangeAbs =
-    equityHoldings.reduce((a, h) => a + (h.dayAbs ?? (h.value * h.daily) / 100), 0) +
-    mutualFundHoldings.reduce((a, h) => a + (h.dayAbs ?? (h.value * h.daily) / 100), 0) +
-    etfHoldings.reduce((a, h) => a + (h.dayAbs ?? (h.value * h.daily) / 100), 0);
-  const dayChangePct = totalCurrent > 0 ? (dayChangeAbs / totalCurrent) * 100 : 0;
-
   // Net worth sub-line breakdown
   const nwBreakdown = [
-    equityValue > 0 ? `Eq ${formatINR(equityValue, { compact: true })}` : '',
-    mfValue     > 0 ? `MF ${formatINR(mfValue,     { compact: true })}` : '',
-    etfValue    > 0 ? `ETF ${formatINR(etfValue,   { compact: true })}` : '',
-    ppfCorpus   > 0 ? `PPF ${formatINR(ppfCorpus,  { compact: true })}` : '',
+    equityValue      > 0 ? `Eq ${formatINR(equityValue,      { compact: true })}` : '',
+    mfValue          > 0 ? `MF ${formatINR(mfValue,          { compact: true })}` : '',
+    etfValue         > 0 ? `ETF ${formatINR(etfValue,        { compact: true })}` : '',
+    ppfValue         > 0 ? `PPF ${formatINR(ppfValue,        { compact: true })}` : '',
+    realEstateValue  > 0 ? `RE ${formatINR(realEstateValue,  { compact: true })}` : '',
   ].filter(Boolean).join(' · ');
 
   // Tax harvesting candidates from real holdings
@@ -320,7 +293,7 @@ export default function DashboardPage() {
           accent={totalReturnPct >= 0 ? 'positive' : 'negative'}
           icon="show_chart"
           loading={holdingsLoading}
-          sub={holdingsLoading ? 'Loading…' : equityHoldings.length === 0 && ppfDeposited === 0 ? 'No data yet' : `on ${formatINR(totalInvested, { compact: true })} invested`}
+          sub={holdingsLoading ? 'Loading…' : totalInvested === 0 ? 'No data yet' : `on ${formatINR(totalInvested, { compact: true })} invested`}
         />
         <KPICard
           label="Day Change"

@@ -11,11 +11,15 @@ export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ holdings: [] });
 
+  // ETF trades are intentionally excluded here — they're tracked in user_etfs
+  // (see /api/etfs, written to by the New Trade ticket via syncAssetHolding).
+  // Including them here too would double-count them: once correctly as an
+  // ETF via user_etfs, and again mislabeled as "Equity" via user_trades.
   const { data: trades, error } = await supabase
     .from('user_trades')
     .select('*')
     .eq('user_id', session.userId)
-    .in('asset_class', ['Equity', 'ETF'])
+    .eq('asset_class', 'Equity')
     .order('trade_date', { ascending: true });
 
   if (error || !trades?.length) return NextResponse.json({ holdings: [] });
@@ -45,7 +49,7 @@ export async function GET() {
         ticker: key,
         units: 0,
         totalCost: 0,
-        sector: t.asset_class === 'ETF' ? 'ETF' : 'Other',
+        sector: 'Other',
       });
     }
 
