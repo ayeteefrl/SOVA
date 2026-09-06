@@ -32,8 +32,19 @@ export async function GET() {
     const key = (t.ticker ?? t.instrument_name ?? '').trim();
     if (!key) continue;
 
-    const units = Number(t.units) || 0;
-    const price = Number(t.price) || 0;
+    let units = Number(t.units) || 0;
+    let price = Number(t.price) || 0;
+    // Mutual fund trades logged via the ticket flow (SIP/Lumpsum) only capture a
+    // rupee amount, not units/NAV. Fall back to a 1:1 unit-to-rupee mapping so
+    // the trade still contributes to the fund's cost/value instead of being
+    // dropped for having zero units.
+    if (units <= 0) {
+      const amount = Number(t.amount) || 0;
+      if (amount > 0) {
+        units = amount;
+        price = 1;
+      }
+    }
 
     if (!map.has(key)) {
       map.set(key, {
@@ -47,8 +58,8 @@ export async function GET() {
     }
 
     const entry = map.get(key)!;
-    const isBuy = ['Buy', 'buy'].includes(t.action ?? '');
-    const isSell = ['Sell', 'sell'].includes(t.action ?? '');
+    const isBuy = ['Buy', 'buy', 'SIP', 'sip', 'Lumpsum', 'lumpsum'].includes(t.action ?? '');
+    const isSell = ['Sell', 'sell', 'Redeem', 'redeem'].includes(t.action ?? '');
 
     if (isBuy && units > 0) {
       entry.totalCost += units * price;

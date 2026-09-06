@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { useSidebar } from './SidebarContext';
 import { useHoldings } from './HoldingsContext';
 import { ImportModal } from './ImportModal';
+import { syncAssetHolding } from '@/lib/syncAssetHolding';
 import type { ActivityItem } from '@/lib/data';
 
 interface SearchQuote {
@@ -204,6 +205,20 @@ function ModalContent({ onClose, initialValues }: { onClose: () => void; initial
       });
     } catch { /* silent — still update local state */ }
 
+    // Mutual Fund / ETF / PPF / Real Estate each have their own dedicated
+    // sleeve page and table — mirror the trade into it so it actually shows
+    // up there, not just in the Activity Ledger.
+    await syncAssetHolding({
+      assetType,
+      orderType,
+      instrument: instrument || ticker,
+      ticker: selectedSymbol || undefined,
+      units,
+      price: priceNum,
+      amount: amountNum,
+      date,
+    });
+
     // Update holdings in memory
     const activity: ActivityItem = {
       id: `trade-${Date.now()}`,
@@ -216,7 +231,7 @@ function ModalContent({ onClose, initialValues }: { onClose: () => void; initial
       positive: !isSell,
       timestamp: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
       rationale: rationale || undefined,
-      tradeAction: orderType === 'Buy' ? 'Buy' : orderType === 'Sell' ? 'Sell' : undefined,
+      tradeAction: ['Buy', 'SIP', 'Lumpsum'].includes(orderType) ? 'Buy' : ['Sell', 'Redeem'].includes(orderType) ? 'Sell' : undefined,
       tradeTicker: ticker || undefined,
       instrumentName: instrument || ticker || undefined,
       tradeUnits: units || undefined,

@@ -156,7 +156,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       // If no brokers are connected, fall back to cached data + custom
       if (!anyBrokerConnected) {
         const enriched = await enrichWithLivePrices(customHoldings);
-        loadFromCache(enriched);
+        loadFromCache(enriched, mfHoldings);
         return;
       }
 
@@ -236,7 +236,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  function loadFromCache(customHoldings: Holding[] = []) {
+  function loadFromCache(customHoldings: Holding[] = [], customMF: Holding[] = []) {
     try {
       const e = localStorage.getItem('sova-equity-holdings');
       const m = localStorage.getItem('sova-mf-holdings');
@@ -252,8 +252,23 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       );
 
       setEquityHoldings([...cached, ...extra, ...manualEquity]);
-      if (m) setMutualFundHoldings(JSON.parse(m));
-      if (f) setETFHoldings(JSON.parse(f));
+
+      // Prefer freshly-fetched CAMS/manual MF data over stale cache when available
+      // (previously this branch only read localStorage, so manually-logged MF
+      // trades never appeared when no broker was connected).
+      if (customMF.length > 0) {
+        const etfs = customMF.filter((h) => h.sector === 'ETF' || isEtfSymbol(h.ticker ?? ''));
+        const funds = customMF.filter((h) => h.sector !== 'ETF' && !isEtfSymbol(h.ticker ?? ''));
+        setMutualFundHoldings(funds);
+        setETFHoldings(etfs);
+        try {
+          localStorage.setItem('sova-mf-holdings', JSON.stringify(stripIntraday(funds)));
+          localStorage.setItem('sova-etf-holdings', JSON.stringify(stripIntraday(etfs)));
+        } catch {}
+      } else {
+        if (m) setMutualFundHoldings(JSON.parse(m));
+        if (f) setETFHoldings(JSON.parse(f));
+      }
     } catch {}
     // Mark that we are on stale data so the UI can show the "as of [time]" indicator
     setIsShowingCachedData(true);
@@ -409,7 +424,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateHoldingsFromActivity = useCallback((activity: ActivityItem) => {
-    if (activity.category !== 'Trade') return;
+    if (!activity.tradeAction) return;
     const ticker = activity.tradeTicker;
     if (!ticker) return;
 
