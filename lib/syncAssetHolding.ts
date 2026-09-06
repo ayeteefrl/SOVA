@@ -65,6 +65,10 @@ async function syncMutualFund({ orderType, instrument, amount, date }: SyncTrade
     });
   } else if (orderType !== 'Redeem') {
     // Brand-new fund — nothing to redeem against, so only SIP/Lumpsum create it.
+    // Only lump_sums[] carries the Lumpsum amount here — the page's
+    // computeAutoInvested/buildTransactions sum the legacy lump_sum scalar
+    // AND every lump_sums[] entry independently, so setting both to the
+    // same amount would double-count this contribution.
     await fetch('/api/sips', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -73,7 +77,6 @@ async function syncMutualFund({ orderType, instrument, amount, date }: SyncTrade
         amount: orderType === 'SIP' ? amount : 0,
         start_date: orderType === 'SIP' ? date : undefined,
         debit_date: orderType === 'SIP' ? date : undefined,
-        lump_sum: orderType === 'Lumpsum' ? amount : 0,
         lump_sums: orderType === 'Lumpsum' ? [{ date, amount, note: 'Lumpsum' }] : [],
       }),
     });

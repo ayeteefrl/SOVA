@@ -23,8 +23,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { fund_name, fund_code, amount, debit_date, start_date, lump_sum, lump_sums } = body;
 
-  if (!fund_name || !amount) {
-    return NextResponse.json({ error: 'fund_name and amount are required' }, { status: 400 });
+  // A fund entry is valid with either a recurring SIP amount or at least one
+  // lumpsum contribution (e.g. a lumpsum-only fund with no monthly debit).
+  const hasLumpSum = Number(lump_sum ?? 0) > 0 || (Array.isArray(lump_sums) && lump_sums.length > 0);
+  if (!fund_name || (!amount && !hasLumpSum)) {
+    return NextResponse.json({ error: 'fund_name and either amount or a lump sum are required' }, { status: 400 });
   }
 
   const { data, error } = await supabase

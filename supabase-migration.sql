@@ -174,3 +174,21 @@ ALTER TABLE user_sips ADD COLUMN IF NOT EXISTS missed_amount NUMERIC(12,2) DEFAU
 
 -- ─── SIP missed entries list (date + amount per missed installment) ───────────
 ALTER TABLE user_sips ADD COLUMN IF NOT EXISTS missed_entries JSONB DEFAULT '[]'::jsonb;
+
+-- ─── Fix user_trades.action check constraint ─────────────────────────────────
+-- The original constraint only allowed ('Buy','Sell','SIP','Deposit','Withdrawal','Rebalance'),
+-- but the New Trade ticket offers many more transaction types per asset class
+-- (Dividend, Lumpsum, Redeem, Partial Withdrawal, Interest Credit, Rent Income,
+-- Appreciation, Interest) — every one of those was silently rejected with a
+-- 500 error and never made it into the Activity Ledger. Run this if you
+-- already have the user_trades table.
+ALTER TABLE user_trades DROP CONSTRAINT IF EXISTS user_trades_action_check;
+ALTER TABLE user_trades ADD CONSTRAINT user_trades_action_check CHECK (
+  action IN (
+    'Buy','Sell','Dividend',
+    'SIP','Lumpsum','Redeem',
+    'Deposit','Withdrawal','Partial Withdrawal','Interest Credit',
+    'Rent Income','Appreciation',
+    'Interest','Rebalance'
+  )
+);
