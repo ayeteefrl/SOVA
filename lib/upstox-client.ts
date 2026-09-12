@@ -4,6 +4,7 @@
 // Tokens expire daily at 3:30 AM IST
 
 import { supabase } from './supabase';
+import { encryptToken, decryptToken } from './crypto';
 
 const UPSTOX_BASE = 'https://api.upstox.com/v2';
 
@@ -44,7 +45,7 @@ export async function saveUpstoxSession(userId: string, accessToken: string): Pr
   await supabase.from('broker_sessions').insert({
     user_id: userId,
     broker: 'upstox',
-    access_token: accessToken,
+    access_token: encryptToken(accessToken),
     enc_token: null,
     last_refreshed_at: new Date().toISOString(),
   });
@@ -58,7 +59,8 @@ export async function getUpstoxToken(userId: string): Promise<string | null> {
     .eq('broker', 'upstox')
     .order('last_refreshed_at', { ascending: false })
     .limit(1);
-  return data?.[0]?.access_token ?? null;
+  const token = data?.[0]?.access_token;
+  return token ? decryptToken(token) : null;
 }
 
 export async function upstoxFetch<T>(userId: string, path: string): Promise<T> {

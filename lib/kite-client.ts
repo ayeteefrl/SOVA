@@ -1,4 +1,5 @@
 import { supabase, BrokerSession } from './supabase';
+import { encryptToken, decryptToken } from './crypto';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { KiteConnect } = require('kiteconnect');
@@ -21,7 +22,7 @@ export async function getKiteClient(userId: string): Promise<KiteInstance | null
     }
 
     const kc = new KiteConnect({ api_key: process.env.KITE_API_KEY! });
-    kc.setAccessToken(session.access_token);
+    kc.setAccessToken(decryptToken(session.access_token));
     return kc;
   } catch {
     return null;
@@ -42,8 +43,8 @@ export async function saveSession(userId: string, accessToken: string, encToken:
     .insert({
       user_id: userId,
       broker: 'zerodha',
-      access_token: accessToken,
-      enc_token: encToken,
+      access_token: encryptToken(accessToken),
+      enc_token: encryptToken(encToken),
       last_refreshed_at: new Date().toISOString(),
     });
 }

@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { encryptToken, decryptToken } from './crypto';
 
 const ANGEL_BASE = 'https://apiconnect.angelbroking.com';
 
@@ -30,7 +31,7 @@ export async function getAngelAuthToken(userId: string): Promise<string | null> 
 
     const session = sessions?.[0];
     if (error || !session?.access_token) return null;
-    return session.access_token;
+    return decryptToken(session.access_token);
   } catch {
     return null;
   }
@@ -65,8 +66,8 @@ export async function saveAngelSession(
     .insert({
       user_id: userId,
       broker: 'angel_one',
-      access_token: authToken,
-      enc_token: refreshToken,
+      access_token: encryptToken(authToken),
+      enc_token: encryptToken(refreshToken),
       last_refreshed_at: new Date().toISOString(),
     });
 }
@@ -103,6 +104,7 @@ export async function refreshAngelToken(userId: string): Promise<boolean> {
       .single();
 
     if (error || !sessions?.enc_token) return false;
+    const refreshToken = decryptToken(sessions.enc_token);
 
     const res = await fetch(
       `${ANGEL_BASE}/rest/auth/angelbroking/jwt/v1/generateTokens`,
@@ -118,7 +120,7 @@ export async function refreshAngelToken(userId: string): Promise<boolean> {
           'X-ClientPublicIP': '127.0.0.1',
           'X-MACAddress': '00:00:00:00:00:00',
         },
-        body: JSON.stringify({ refreshToken: sessions.enc_token }),
+        body: JSON.stringify({ refreshToken }),
       }
     );
 
@@ -126,7 +128,7 @@ export async function refreshAngelToken(userId: string): Promise<boolean> {
     const json = await res.json();
     if (!json.status || !json.data?.jwtToken) return false;
 
-    await saveAngelSession(userId, json.data.jwtToken, json.data.refreshToken ?? sessions.enc_token);
+    await saveAngelSession(userId, json.data.jwtToken, json.data.refreshToken ?? refreshToken);
     return true;
   } catch {
     return false;

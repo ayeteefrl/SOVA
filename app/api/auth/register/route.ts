@@ -1,8 +1,18 @@
 import { hash } from 'bcryptjs';
 import { supabase } from '@/lib/supabase';
+import { checkRateLimit, clientIp } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   try {
+    const ip = clientIp(req);
+    const rateLimit = await checkRateLimit(`register:${ip}`, 5, 3600);
+    if (!rateLimit.allowed) {
+      return Response.json(
+        { error: 'Too many accounts created from this location. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } },
+      );
+    }
+
     const { email, password } = await req.json();
 
     if (!email || !password) {

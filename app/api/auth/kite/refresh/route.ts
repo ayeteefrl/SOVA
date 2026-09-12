@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { saveSession, createKiteClient } from '@/lib/kite-client';
 import { supabase } from '@/lib/supabase';
+import { decryptToken } from '@/lib/crypto';
 
 export async function POST() {
   try {
@@ -22,14 +23,15 @@ export async function POST() {
     }
 
     // Use enc_token to renew — enc_token is long-lived and does not expire at midnight
+    const encToken = decryptToken(brokerSession.enc_token);
     const kc = createKiteClient();
-    kc.setAccessToken(brokerSession.enc_token);
+    kc.setAccessToken(encToken);
 
     // Verify the token is still valid by fetching profile
     await kc.getProfile();
 
     // Token is still valid — just update last_refreshed_at
-    await saveSession(session.userId, brokerSession.enc_token, brokerSession.enc_token);
+    await saveSession(session.userId, encToken, encToken);
 
     return NextResponse.json({ success: true });
   } catch (err) {

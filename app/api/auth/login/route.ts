@@ -3,14 +3,28 @@ import { compare } from 'bcryptjs';
 import { SignJWT } from 'jose';
 import { createHash } from 'crypto';
 import { supabase } from '@/lib/supabase';
+import { checkRateLimit, clientIp } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
-    const secret = new TextEncoder().encode(process.env.SESSION_SECRET!);
+    if (!process.env.SESSION_SECRET) {
+      console.error('[login] SESSION_SECRET is not set');
+      return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
+    }
+    const secret = new TextEncoder().encode(process.env.SESSION_SECRET);
     const { email, password } = await req.json();
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password required' }, { status: 400 });
+    }
+
+    const ip = clientIp(req);
+    const rateLimit = await checkRateLimit(`login:${ip}:${email}`, 10, 600);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many attempts. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } },
+      );
     }
 
     const { data: user, error } = await supabase
@@ -36,7 +50,6 @@ export async function POST(req: NextRequest) {
     // Record active session
     const tokenHash = createHash('sha256').update(token).digest('hex');
     const ua = req.headers.get('user-agent') ?? '';
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ?? req.headers.get('x-real-ip') ?? '0.0.0.0';
 
     let browser = 'Unknown Browser';
     if (ua.includes('Chrome')) browser = 'Chrome';

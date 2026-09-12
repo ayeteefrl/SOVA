@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { createHash, randomBytes } from 'crypto';
 import nodemailer from 'nodemailer';
+import { checkRateLimit, clientIp } from '@/lib/rate-limit';
 
 const transporter = nodemailer.createTransport({
   host: 'smtpout.secureserver.net',
@@ -18,6 +19,14 @@ export async function POST(req: NextRequest) {
     const { email } = await req.json();
     if (!email) {
       return NextResponse.json({ error: 'Email required' }, { status: 400 });
+    }
+
+    const ip = clientIp(req);
+    const rateLimit = await checkRateLimit(`forgot-password:${ip}:${email}`, 5, 3600);
+    if (!rateLimit.allowed) {
+      // Same generic response as success, to avoid leaking whether the email exists
+      // or that a limit was hit for it specifically.
+      return NextResponse.json({ success: true });
     }
 
     // Check user exists — don't reveal whether they do or not in the response

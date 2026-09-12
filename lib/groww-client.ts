@@ -3,6 +3,7 @@
 // Auth: server-side API key (GROWW_API_KEY env) + user TOTP from authenticator app
 
 import { supabase } from './supabase';
+import { encryptToken, decryptToken } from './crypto';
 
 const GROWW_BASE = 'https://api.groww.in';
 const GROWW_API_KEY = process.env.GROWW_API_KEY ?? '';
@@ -30,7 +31,7 @@ export async function saveGrowwSession(userId: string, accessToken: string): Pro
   await supabase.from('broker_sessions').insert({
     user_id: userId,
     broker: 'groww',
-    access_token: accessToken,
+    access_token: encryptToken(accessToken),
     enc_token: null,
     last_refreshed_at: new Date().toISOString(),
   });
@@ -44,7 +45,8 @@ export async function getGrowwToken(userId: string): Promise<string | null> {
     .eq('broker', 'groww')
     .order('last_refreshed_at', { ascending: false })
     .limit(1);
-  return data?.[0]?.access_token ?? null;
+  const token = data?.[0]?.access_token;
+  return token ? decryptToken(token) : null;
 }
 
 export async function growwFetch<T>(userId: string, path: string): Promise<T> {

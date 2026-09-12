@@ -215,3 +215,18 @@ CREATE TABLE IF NOT EXISTS portfolio_snapshots (
 -- carry both so "Total Portfolio Performance" reflects the full net worth.
 ALTER TABLE portfolio_snapshots ADD COLUMN IF NOT EXISTS ppf_value NUMERIC(16,2) NOT NULL DEFAULT 0;
 ALTER TABLE portfolio_snapshots ADD COLUMN IF NOT EXISTS real_estate_value NUMERIC(16,2) NOT NULL DEFAULT 0;
+
+-- ─── Auth rate limiting ───────────────────────────────────────────────────────
+-- Backs lib/rate-limit.ts. Fixed-window counter per (key, window_start) so
+-- login/register/password-reset endpoints can throttle brute-force/spam
+-- attempts before public launch. Safe to prune old rows periodically —
+-- nothing reads a row once its window has passed.
+CREATE TABLE IF NOT EXISTS auth_rate_limits (
+  key          TEXT NOT NULL,
+  window_start TIMESTAMPTZ NOT NULL,
+  count        INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY (key, window_start)
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_rate_limits_window_start
+  ON auth_rate_limits (window_start);

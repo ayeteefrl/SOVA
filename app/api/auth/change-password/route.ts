@@ -2,24 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { createHash } from 'crypto';
 import bcrypt from 'bcryptjs';
-import { jwtVerify } from 'jose';
-
-const SESSION_SECRET = new TextEncoder().encode(process.env.SESSION_SECRET ?? 'fallback-secret');
-
-async function getUserIdFromRequest(req: NextRequest): Promise<string | null> {
-  const cookie = req.cookies.get('sova_session')?.value;
-  if (!cookie) return null;
-  try {
-    const { payload } = await jwtVerify(cookie, SESSION_SECRET);
-    return (payload as { userId?: string }).userId ?? null;
-  } catch {
-    return null;
-  }
-}
+import { getSession } from '@/lib/session';
+import { checkRateLimit, clientIp } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
-  const userId = await getUserIdFromRequest(req);
-  if (!userId) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const userId = session.userId;
+
+  const rateLimit = await checkRateLimit(`change-password:${clientIp(req)}:${userId}`, 10, 600);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many attempts. Please try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } },
+    );
+  }
 
   const { currentPassword, newPassword } = await req.json();
 
@@ -41,7 +38,7 @@ export async function POST(req: NextRequest) {
   const valid = await bcrypt.compare(currentPassword, user.password_hash);
   if (!valid) return NextResponse.json({ error: 'Current password is incorrect' }, { status: 400 });
 
-  const newHash = await bcrypt.hash(newPassword, 10);
+  const newHash = await bcrypt.hash(newPassword, 12);
   await supabase.from('users').update({ password_hash: newHash }).eq('id', userId);
 
   // Revoke all sessions except current
