@@ -111,56 +111,26 @@ export default function HeroSection() {
           </a>
         </motion.div>
 
-        {/* Social proof */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.65 }}
-          className="mt-5 flex items-center gap-2.5"
-        >
-          <div className="flex -space-x-2">
-            {['AM', 'PK', 'RN'].map((i, idx) => (
-              <div
-                key={i}
-                className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-black shrink-0"
-                style={{
-                  background: '#0d1322',
-                  border: `2px solid ${['#4d8eff', '#D4AF37', '#4edea3'][idx]}`,
-                  color: ['#4d8eff', '#D4AF37', '#4edea3'][idx],
-                  zIndex: idx + 1,
-                  position: 'relative',
-                }}
-              >
-                {i}
-              </div>
-            ))}
-          </div>
-          <p className="text-[11px] font-semibold text-outline/55">
-            <span className="text-primary-fixed-dim font-black">500+</span>
-            {' '}investors already tracking
-          </p>
-        </motion.div>
-
         {/* Trust row */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.75 }}
-          className="flex flex-wrap justify-center items-center gap-4 md:gap-6 mt-8 text-[10px] font-bold uppercase tracking-widest text-outline/60"
+          transition={{ duration: 0.6, delay: 0.65 }}
+          className="flex flex-wrap justify-center items-center gap-x-4 gap-y-3 md:gap-x-6 mt-10 text-[10px] font-bold uppercase tracking-widest text-outline/60"
         >
           <span className="flex items-center gap-1.5">
             <span className="material-symbols-outlined text-xs text-secondary">lock</span>
             No card required
           </span>
-          <div className="w-px h-3 bg-outline/20" />
+          <div className="hidden sm:block w-px h-3 bg-outline/20" />
           <span className="flex items-center gap-1.5">
             <span className="material-symbols-outlined text-xs text-secondary">verified</span>
             Free forever tier
           </span>
-          <div className="w-px h-3 bg-outline/20" />
+          <div className="hidden sm:block w-px h-3 bg-outline/20" />
           <span className="flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-xs text-secondary">security</span>
-            Read-only access
+            <span className="material-symbols-outlined text-xs text-secondary">shield_lock</span>
+            Your data never leaves you
           </span>
         </motion.div>
       </div>

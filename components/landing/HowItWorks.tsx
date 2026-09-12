@@ -66,44 +66,58 @@ export default function HowItWorks() {
               initial={{ opacity: 0, y: 28 }}
               animate={inView ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.5, delay: i * 0.1 }}
-              className="relative rounded-2xl p-6 overflow-hidden"
-              style={{ background: '#0f1526', border: '1px solid rgba(66,71,84,0.35)' }}
+              className="relative"
             >
-              {/* Top accent */}
+              {/* Card body — clips the top accent, so the connector arrow lives outside it */}
               <div
-                className="absolute top-0 left-0 right-0 h-0.5 rounded-t-2xl"
-                style={{ background: `linear-gradient(90deg, transparent, ${step.color}55, transparent)` }}
-              />
-
-              {/* Step number */}
-              <div className="flex items-center justify-between mb-5">
+                className="relative h-full rounded-2xl p-6 overflow-hidden"
+                style={{ background: '#0f1526', border: '1px solid rgba(66,71,84,0.35)' }}
+              >
+                {/* Top accent */}
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ background: `${step.color}12` }}
-                >
-                  <span className="material-symbols-outlined text-base" style={{ color: step.color }}>
-                    {step.icon}
+                  className="absolute top-0 left-0 right-0 h-0.5"
+                  style={{ background: `linear-gradient(90deg, transparent, ${step.color}55, transparent)` }}
+                />
+
+                {/* Step number */}
+                <div className="flex items-center justify-between mb-5">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: `${step.color}12` }}
+                  >
+                    <span className="material-symbols-outlined text-base" style={{ color: step.color }}>
+                      {step.icon}
+                    </span>
+                  </div>
+                  <span
+                    className="text-[11px] font-black tabular-nums"
+                    style={{ color: `${step.color}60` }}
+                  >
+                    {step.step}
                   </span>
                 </div>
-                <span
-                  className="text-[11px] font-black tabular-nums"
-                  style={{ color: `${step.color}60` }}
-                >
-                  {step.step}
-                </span>
+
+                <h3 className="text-[13px] font-black text-on-surface mb-2 leading-snug">
+                  {step.title}
+                </h3>
+                <p className="text-[11px] text-on-surface-variant font-medium leading-relaxed">
+                  {step.description}
+                </p>
               </div>
 
-              <h3 className="text-[13px] font-black text-on-surface mb-2 leading-snug">
-                {step.title}
-              </h3>
-              <p className="text-[11px] text-on-surface-variant font-medium leading-relaxed">
-                {step.description}
-              </p>
-
-              {/* Connector arrow (not on last) */}
+              {/* Connector arrow — centred in the 20px grid gap (not on the last card) */}
               {i < STEPS.length - 1 && (
-                <div className="hidden lg:block absolute -right-3 top-1/2 -translate-y-1/2 z-10">
-                  <span className="material-symbols-outlined text-sm text-outline/30">chevron_right</span>
+                <div
+                  className="hidden lg:flex absolute top-1/2 items-center justify-center pointer-events-none z-10"
+                  style={{ right: -20, width: 20, height: 20, marginTop: -10 }}
+                  aria-hidden="true"
+                >
+                  <span
+                    className="material-symbols-outlined text-outline/30 leading-none"
+                    style={{ fontSize: 18 }}
+                  >
+                    chevron_right
+                  </span>
                 </div>
               )}
             </motion.div>

@@ -90,7 +90,7 @@ export default function LandingFooter() {
           </Link>
 
           <p className="text-[10px] font-semibold text-outline/50 uppercase tracking-[0.2em]">
-            ⟡ Private Wealth Terminal · Not a broker · Read-only access · Your money stays with your broker
+            ⟡ Private Wealth Terminal · Not a broker · Your money stays with your broker
           </p>
 
           <div className="flex items-center gap-5">
