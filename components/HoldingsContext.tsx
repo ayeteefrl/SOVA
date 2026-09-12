@@ -484,9 +484,12 @@ async function fetchAllSources(): Promise<{
         }
       }
       if (equityRes.status === 401) return { equity: [], connected: false, mf: [] };
+      // connected requires an actual OK response, not just "not a 401" — a 500 or
+      // other failure must not be reported as connected (same class of bug fixed
+      // in fetchBroker below: falsely "connected" bypasses the cache fallback).
       const equity = equityRes.ok ? ((await equityRes.json()).holdings ?? []) : [];
       const mf     = mfRes.ok    ? ((await mfRes.json()).holdings    ?? []) : [];
-      return { equity, connected: true, mf };
+      return { equity, connected: equityRes.ok, mf };
     } catch {
       return { equity: [], connected: false, mf: [] };
     }
@@ -501,7 +504,7 @@ async function fetchAllSources(): Promise<{
       }
       if (res.status === 401) return { equity: [], connected: false };
       const equity = res.ok ? ((await res.json()).holdings ?? []) : [];
-      return { equity, connected: true };
+      return { equity, connected: res.ok };
     } catch {
       return { equity: [], connected: false };
     }

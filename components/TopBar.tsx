@@ -33,21 +33,26 @@ export function TopBar() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const { toggleMobile } = useSidebar();
-  const { refresh, isLoading, isRefreshing } = useHoldings();
+  const { refresh, isLoading, isRefreshing, isShowingCachedData } = useHoldings();
 
   function handleRefresh() {
     // Clear broker-sourced cached holdings so fetchHoldings shows the full
     // loading skeleton and fetches everything fresh (custom holdings are kept).
-    try {
-      for (const key of ['sova-equity-holdings', 'sova-mf-holdings', 'sova-etf-holdings']) {
-        const raw = localStorage.getItem(key);
-        if (!raw) continue;
-        const arr = JSON.parse(raw) as Array<{ source?: string }>;
-        const custom = arr.filter((h) => !h.source || h.source === 'custom');
-        if (custom.length === 0) localStorage.removeItem(key);
-        else localStorage.setItem(key, JSON.stringify(custom));
-      }
-    } catch {}
+    // Skip this when we're already on cached data (broker token expired) —
+    // there's no live source to refill it, so wiping it here would blank the
+    // UI instead of refreshing it. fetchHoldings will retry the broker itself.
+    if (!isShowingCachedData) {
+      try {
+        for (const key of ['sova-equity-holdings', 'sova-mf-holdings', 'sova-etf-holdings']) {
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const arr = JSON.parse(raw) as Array<{ source?: string }>;
+          const custom = arr.filter((h) => !h.source || h.source === 'custom');
+          if (custom.length === 0) localStorage.removeItem(key);
+          else localStorage.setItem(key, JSON.stringify(custom));
+        }
+      } catch {}
+    }
     refresh();
     window.dispatchEvent(new Event('sova:refresh'));
   }
