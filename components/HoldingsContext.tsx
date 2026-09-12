@@ -15,8 +15,6 @@ interface HoldingsContextType {
   needsAngelReconnect: boolean;
   needsUpstoxReconnect: boolean;
   needsGrowwReconnect: boolean;
-  needsHdfcReconnect: boolean;
-  needsMotilaReconnect: boolean;
   /** True when holdings are being served from the last-known cache (no live broker data). */
   isShowingCachedData: boolean;
   /** ISO timestamp of when the cache was last written from a live fetch. */
@@ -98,8 +96,6 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
   const [needsAngelReconnect, setNeedsAngelReconnect] = useState(false);
   const [needsUpstoxReconnect, setNeedsUpstoxReconnect] = useState(false);
   const [needsGrowwReconnect, setNeedsGrowwReconnect] = useState(false);
-  const [needsHdfcReconnect, setNeedsHdfcReconnect] = useState(false);
-  const [needsMotilaReconnect, setNeedsMotilaReconnect] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   // True once the first live API response with real dayAbs values has been received
   const [intradayReady, setIntradayReady] = useState(false);
@@ -140,18 +136,14 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
         angelEquity, angelConnected,
         upstoxEquity, upstoxConnected,
         growwEquity, growwConnected,
-        hdfcEquity, hdfcConnected,
-        motilaEquity, motilaConnected,
       } = await fetchAllSources();
 
       setNeedsKiteReconnect(!zerodhaConnected);
       setNeedsAngelReconnect(!angelConnected);
       setNeedsUpstoxReconnect(!upstoxConnected);
       setNeedsGrowwReconnect(!growwConnected);
-      setNeedsHdfcReconnect(!hdfcConnected);
-      setNeedsMotilaReconnect(!motilaConnected);
 
-      const anyBrokerConnected = zerodhaConnected || angelConnected || upstoxConnected || growwConnected || hdfcConnected || motilaConnected;
+      const anyBrokerConnected = zerodhaConnected || angelConnected || upstoxConnected || growwConnected;
 
       // If no brokers are connected, fall back to cached data + custom
       if (!anyBrokerConnected) {
@@ -160,9 +152,9 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Build a deduplicated set — priority: Zerodha > Angel > Upstox > Groww > HDFC > Motilal > custom
+      // Build a deduplicated set — priority: Zerodha > Angel > Upstox > Groww > custom
       const seenTickers = new Set<string>();
-      const brokerFeeds = [zerodhaEquity, angelEquity, upstoxEquity, growwEquity, hdfcEquity, motilaEquity];
+      const brokerFeeds = [zerodhaEquity, angelEquity, upstoxEquity, growwEquity];
       const deduped: Holding[] = [];
       for (const feed of brokerFeeds) {
         for (const h of feed) {
@@ -441,7 +433,7 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
       equityHoldings, mutualFundHoldings, etfHoldings,
       isLoading, isRefreshing, intradayReady,
       needsKiteReconnect, needsAngelReconnect,
-      needsUpstoxReconnect, needsGrowwReconnect, needsHdfcReconnect, needsMotilaReconnect,
+      needsUpstoxReconnect, needsGrowwReconnect,
       isShowingCachedData, cacheTimestamp,
       refresh: fetchHoldings,
       addHolding, updateHolding, removeHolding, updateHoldingsFromActivity,
@@ -465,8 +457,6 @@ async function fetchAllSources(): Promise<{
   angelEquity: Holding[]; angelConnected: boolean;
   upstoxEquity: Holding[]; upstoxConnected: boolean;
   growwEquity: Holding[]; growwConnected: boolean;
-  hdfcEquity: Holding[]; hdfcConnected: boolean;
-  motilaEquity: Holding[]; motilaConnected: boolean;
 }> {
   const fetchZerodha = async () => {
     try {
@@ -542,15 +532,13 @@ async function fetchAllSources(): Promise<{
     }
   };
 
-  const [z, a, customHoldings, camsMF, upstox, groww, hdfc, motila] = await Promise.all([
+  const [z, a, customHoldings, camsMF, upstox, groww] = await Promise.all([
     fetchZerodha(),
     fetchAngel(),
     fetchCustom(),
     fetchCamsMF(),
     fetchBroker('/api/upstox/holdings', 'upstox'),
     fetchBroker('/api/groww/holdings', 'groww'),
-    fetchBroker('/api/hdfc/holdings', 'hdfc'),
-    fetchBroker('/api/motilal/holdings', 'motilal'),
   ]);
 
   return {
@@ -568,10 +556,6 @@ async function fetchAllSources(): Promise<{
     upstoxConnected: upstox.connected,
     growwEquity: groww.equity,
     growwConnected: groww.connected,
-    hdfcEquity: hdfc.equity,
-    hdfcConnected: hdfc.connected,
-    motilaEquity: motila.equity,
-    motilaConnected: motila.connected,
   };
 }
 

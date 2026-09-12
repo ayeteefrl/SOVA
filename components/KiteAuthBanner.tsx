@@ -13,13 +13,11 @@ export function KiteAuthBanner() {
     needsAngelReconnect,
     needsUpstoxReconnect,
     needsGrowwReconnect,
-    needsHdfcReconnect,
-    needsMotilaReconnect,
     isShowingCachedData,
     cacheTimestamp,
   } = useHoldings();
 
-  const [toast, setToast]       = useState<'kite' | 'angel' | 'upstox' | 'hdfc' | null>(null);
+  const [toast, setToast]       = useState<'kite' | 'angel' | 'upstox' | null>(null);
   const [dismissed, setDismissed] = useState(true);
 
   // Success toast — fires once after OAuth redirect
@@ -28,7 +26,6 @@ export function KiteAuthBanner() {
     if (params.get('kite_auth') === 'success')   setToast('kite');
     else if (params.get('angel_auth') === 'success')  setToast('angel');
     else if (params.get('upstox_auth') === 'success') setToast('upstox');
-    else if (params.get('hdfc_auth') === 'success')   setToast('hdfc');
     if ([...params.keys()].some((k) => k.endsWith('_auth'))) {
       window.history.replaceState({}, '', window.location.pathname);
     }
@@ -65,8 +62,6 @@ export function KiteAuthBanner() {
     needsAngelReconnect  && 'Angel One',
     needsUpstoxReconnect && 'Upstox',
     needsGrowwReconnect  && 'Groww',
-    needsHdfcReconnect   && 'HDFC',
-    needsMotilaReconnect && 'Motilal Oswal',
   ].filter(Boolean) as string[];
 
   // Human-readable "as of" label for the stale-data timestamp
@@ -114,7 +109,6 @@ export function KiteAuthBanner() {
               <p className="text-[10px] text-on-surface-variant">
                 {toast === 'angel'  ? 'Angel One live data active'
                 : toast === 'upstox' ? 'Upstox live data active'
-                : toast === 'hdfc'   ? 'HDFC Securities live data active'
                 :                      'Zerodha live data active'}
               </p>
             </div>

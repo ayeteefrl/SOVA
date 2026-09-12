@@ -419,17 +419,14 @@ function IntegrationsPanel() {
   const [kiteStatus, setKiteStatus] = useState<BrokerStatus>('loading');
   const [angelStatus, setAngelStatus] = useState<BrokerStatus>('loading');
   const [upstoxStatus, setUpstoxStatus] = useState<BrokerStatus>('loading');
-  const [hdfcStatus, setHdfcStatus] = useState<BrokerStatus>('loading');
   const [connectingKite, setConnectingKite] = useState(false);
   const [connectingAngel, setConnectingAngel] = useState(false);
   const [connectingUpstox, setConnectingUpstox] = useState(false);
-  const [connectingHdfc, setConnectingHdfc] = useState(false);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
 
   // Credential-modal brokers
   const [growwStatus, setGrowwStatus] = useState<BrokerStatus>('loading');
-  const [motilaStatus, setMotilaStatus] = useState<BrokerStatus>('loading');
-  const [modal, setModal] = useState<'groww' | 'motilal' | null>(null);
+  const [modal, setModal] = useState<'groww' | null>(null);
 
   useEffect(() => {
     const check = (url: string, setter: (s: BrokerStatus) => void) =>
@@ -440,16 +437,13 @@ function IntegrationsPanel() {
     check('/api/auth/kite/status', setKiteStatus);
     check('/api/auth/angel/status', setAngelStatus);
     check('/api/upstox/status', setUpstoxStatus);
-    check('/api/hdfc/status', setHdfcStatus);
     check('/api/groww/status', setGrowwStatus);
-    check('/api/motilal/status', setMotilaStatus);
 
     // Reset any stuck "connecting" spinners when user navigates back to this page
     const resetConnecting = () => {
       setConnectingKite(false);
       setConnectingAngel(false);
       setConnectingUpstox(false);
-      setConnectingHdfc(false);
     };
     window.addEventListener('pageshow', resetConnecting);
     return () => window.removeEventListener('pageshow', resetConnecting);
@@ -463,19 +457,11 @@ function IntegrationsPanel() {
       if (broker === 'zerodha') setKiteStatus('disconnected');
       else if (broker === 'angel') setAngelStatus('disconnected');
       else if (broker === 'upstox') setUpstoxStatus('disconnected');
-      else if (broker === 'hdfc') setHdfcStatus('disconnected');
       else if (broker === 'groww') setGrowwStatus('disconnected');
-      else if (broker === 'motilal') setMotilaStatus('disconnected');
       refresh();
     } catch {}
     setDisconnecting(null);
   }
-
-  const comingSoon = [
-    { name: 'ICICI Direct', category: 'Broker · Bank-Backed' },
-    { name: 'Kotak Securities', category: 'Broker · Bank-Backed' },
-    { name: 'ClearTax', category: 'Tax Platform' },
-  ];
 
   return (
     <Card tier="low" className="p-8">
@@ -518,37 +504,7 @@ function IntegrationsPanel() {
           onDisconnect={() => handleDisconnect('groww', '/api/groww/disconnect')}
         />
 
-        <BrokerCard
-          name="HDFC Securities" category="Broker · Bank-Backed"
-          description={hdfcStatus === 'connected' ? 'Live holdings from your HDFC Securities InvestRight account.' : 'Connect your HDFC Securities account via the InvestRight developer portal.'}
-          status={hdfcStatus}
-          connecting={connectingHdfc} disconnecting={disconnecting === 'hdfc'}
-          onConnect={() => { setConnectingHdfc(true); window.location.href = '/api/hdfc/login'; }}
-          onDisconnect={() => handleDisconnect('hdfc', '/api/hdfc/disconnect')}
-        />
-
-        <BrokerCard
-          name="Motilal Oswal" category="Broker · Full-Service"
-          description={motilaStatus === 'connected' ? 'Live holdings from your Motilal Oswal moAPI account. Token refreshes daily.' : 'Connect with your moAPI password and TOTP. Token expires at 6 AM IST daily.'}
-          status={motilaStatus}
-          disconnecting={disconnecting === 'motilal'}
-          onConnect={() => setModal('motilal')}
-          onDisconnect={() => handleDisconnect('motilal', '/api/motilal/disconnect')}
-        />
-
         <CAMSCard />
-
-        {comingSoon.map((b) => (
-          <div key={b.name} className="p-5 rounded-xl bg-surface-container-highest/20 flex items-center justify-between opacity-50">
-            <div>
-              <p className="text-sm font-black text-on-surface">{b.name}</p>
-              <p className="text-[10px] text-outline font-bold uppercase tracking-widest mt-0.5">{b.category}</p>
-            </div>
-            <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-outline/10 text-outline">
-              Coming Soon
-            </span>
-          </div>
-        ))}
       </div>
 
       {/* Credential modals */}
@@ -561,18 +517,6 @@ function IntegrationsPanel() {
               { key: 'totp', label: 'TOTP (6-digit)', placeholder: '123456', type: 'text', hint: 'From the authenticator app linked to your Groww trading account' },
             ]}
             onSuccess={() => { setModal(null); setGrowwStatus('connected'); refresh(); }}
-            onClose={() => setModal(null)}
-          />
-        )}
-        {modal === 'motilal' && (
-          <CredentialModal
-            title="Motilal Oswal" category="Broker · Full-Service"
-            endpoint="/api/motilal/connect"
-            fields={[
-              { key: 'password', label: 'Trading Password', placeholder: 'Your moAPI login password', type: 'password' },
-              { key: 'totp', label: 'TOTP (6-digit)', placeholder: '123456', hint: 'From your linked authenticator app. Token expires at 6 AM IST daily.' },
-            ]}
-            onSuccess={() => { setModal(null); setMotilaStatus('connected'); refresh(); }}
             onClose={() => setModal(null)}
           />
         )}

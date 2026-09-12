@@ -21,7 +21,7 @@ export type Holding = {
   total: number; // pct
   weight: number; // pct
   sector?: string;
-  source?: 'zerodha' | 'angel_one' | 'upstox' | 'groww' | 'hdfc' | 'motilal' | 'custom';
+  source?: 'zerodha' | 'angel_one' | 'upstox' | 'groww' | 'custom';
   sparkline?: number[];
   beta?: number;
   volatility30d?: number;

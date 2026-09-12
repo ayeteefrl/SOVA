@@ -6,14 +6,12 @@ import { Holding } from '@/lib/data';
 import { cn, formatINR } from '@/lib/utils';
 import { DeltaChip } from '@/components/ui/Chip';
 
-const BROKER_SOURCES: Holding['source'][] = ['zerodha', 'angel_one', 'upstox', 'groww', 'hdfc', 'motilal'];
+const BROKER_SOURCES: Holding['source'][] = ['zerodha', 'angel_one', 'upstox', 'groww'];
 const SOURCE_LABEL: Partial<Record<NonNullable<Holding['source']>, string>> = {
   zerodha:   'Zerodha',
   angel_one: 'Angel',
   upstox:    'Upstox',
   groww:     'Groww',
-  hdfc:      'HDFC',
-  motilal:   'Motilal',
   custom:    'Manual',
 };
 
