@@ -2,6 +2,40 @@
 -- Run this in your Supabase Dashboard → SQL Editor
 -- Safe to run multiple times (uses IF NOT EXISTS and ADD COLUMN IF NOT EXISTS)
 
+-- ─── Base schema (bootstrap) ──────────────────────────────────────────────────
+-- users/broker_sessions/password_reset_tokens were created by hand in the
+-- Supabase UI at some point and were never captured here — everything below
+-- assumed they already existed. Reconstructed from actual column usage in the
+-- app so this file can fully bootstrap a brand-new (e.g. dev/staging) project.
+CREATE TABLE IF NOT EXISTS users (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email         TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  created_at    TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS broker_sessions (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  broker            TEXT NOT NULL,
+  access_token      TEXT,
+  enc_token         TEXT,
+  created_at        TIMESTAMPTZ DEFAULT now(),
+  last_refreshed_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_broker_sessions_user_broker
+  ON broker_sessions (user_id, broker);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+  token_hash TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used       BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- ─── Extend users table ──────────────────────────────────────────────────────
 ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS mobile TEXT;
