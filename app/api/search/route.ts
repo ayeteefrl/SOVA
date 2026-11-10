@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { searchUpstoxEquities } from '@/lib/upstox-client';
 
 const YF_HEADERS = {
   'User-Agent':
@@ -16,17 +17,32 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(
-      q,
-    )}&lang=en-US&region=IN&newsCount=0&enableFuzzyQuery=false&enableCb=true&quotesCount=10`;
+    // Indian NSE/BSE equities & ETFs come from Upstox; Yahoo still covers US tickers,
+    // indices and mutual funds. If Upstox fails, Yahoo's Indian results are kept.
+    const [upstoxHits, yfRes] = await Promise.all([
+      searchUpstoxEquities(q).catch((e) => {
+        console.warn('[api/search] Upstox failed, using Yahoo only:', e?.message);
+        return null;
+      }),
+      (async () => {
+        const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(
+          q,
+        )}&lang=en-US&region=IN&newsCount=0&enableFuzzyQuery=false&enableCb=true&quotesCount=10`;
+        const res = await fetch(url, { headers: YF_HEADERS, next: { revalidate: 30 } });
+        if (!res.ok) throw new Error(`YF search ${res.status}`);
+        return res.json();
+      })().catch((e) => {
+        console.warn('[api/search] Yahoo failed:', e?.message);
+        return null;
+      }),
+    ]);
 
-    const res = await fetch(url, { headers: YF_HEADERS, next: { revalidate: 30 } });
-    if (!res.ok) throw new Error(`YF search ${res.status}`);
+    if (!upstoxHits && !yfRes) throw new Error('all search sources failed');
 
-    const data = await res.json();
-    const quotes = (data?.finance?.result?.[0]?.quotes ?? data?.quotes ?? [])
+    const isIndian = (s: string) => /\.(NS|BO)$/i.test(s);
+    const yfQuotes = (yfRes?.finance?.result?.[0]?.quotes ?? yfRes?.quotes ?? [])
       .filter((q: any) => ['EQUITY', 'INDEX', 'ETF', 'MUTUALFUND'].includes(q.quoteType))
-      .slice(0, 8)
+      .filter((q: any) => !upstoxHits || !isIndian(q.symbol))
       .map((q: any) => ({
         symbol: q.symbol,
         shortName: q.shortname ?? q.longname ?? q.symbol,
@@ -36,6 +52,9 @@ export async function GET(req: NextRequest) {
         sector: q.sector ?? '',
         industry: q.industry ?? '',
       }));
+
+    // Cap Indian hits at 5 so loose name matches can't crowd out US/index/fund results
+    const quotes = [...(upstoxHits ?? []).slice(0, 5), ...yfQuotes].slice(0, 8);
 
     return NextResponse.json({ quotes });
   } catch (err) {

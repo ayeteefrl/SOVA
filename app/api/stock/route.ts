@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStockSnapshot, getTickerDetails, getDailyBars } from '@/lib/massive-client';
+import { getUpstoxStock } from '@/lib/upstox-client';
 
 const YF_HEADERS = {
   'User-Agent':
@@ -149,7 +150,17 @@ export async function GET(req: NextRequest) {
       // Massive returned null (ticker not found) — fall through to Yahoo Finance
     }
 
-    // Indian stocks (.NS/.BO) or Massive miss → Yahoo Finance
+    // Indian stocks/ETFs (.NS/.BO) → Upstox first, Yahoo as fallback
+    if (isIndianSymbol(symbol)) {
+      try {
+        const upstoxData = await getUpstoxStock(symbol);
+        if (upstoxData) return NextResponse.json({ stock: upstoxData });
+      } catch (e) {
+        console.warn('[api/stock] Upstox failed, falling back to Yahoo:', (e as Error)?.message);
+      }
+    }
+
+    // Upstox miss or Massive miss → Yahoo Finance
     const yfData = await fromYahooFinance(symbol);
     return NextResponse.json({ stock: yfData });
   } catch (err) {

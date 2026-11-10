@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getIndicesSnapshot, getCryptoSnapshot, getForexSnapshot } from '@/lib/massive-client';
+import { getUpstoxIndexQuotes } from '@/lib/upstox-client';
 
 // ─── Canonical display order for the ticker strip ─────────────────────────────
 const TICKER_ORDER = [
@@ -115,8 +116,16 @@ async function fetchMassiveForex(): Promise<{ symbol: string; price: number; cha
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 export async function GET() {
+  // Upstox first for Indian indices; Yahoo only fetches whatever Upstox missed
+  const upstoxIndices = await getUpstoxIndexQuotes().catch((e) => {
+    console.warn('[api/market] Upstox failed, falling back to Yahoo:', e?.message);
+    return [] as { symbol: string; price: number; change: number }[];
+  });
+  const covered = new Set(upstoxIndices.map((t) => t.symbol));
+  const yfNeeded = YF_INDICES.filter((i) => !covered.has(i.label));
+
   const [yfResults, massiveIndices, massiveCrypto, massiveForex] = await Promise.all([
-    Promise.allSettled(YF_INDICES.map(fetchYFSymbol)),
+    Promise.allSettled(yfNeeded.map(fetchYFSymbol)),
     fetchMassiveIndices(),
     fetchMassiveCrypto(),
     fetchMassiveForex(),
@@ -130,14 +139,14 @@ export async function GET() {
       dataMap.set(r.value.symbol, r.value);
     } else {
       console.warn(
-        `[api/market] YF failed for ${YF_INDICES[i].yf}:`,
+        `[api/market] YF failed for ${yfNeeded[i].yf}:`,
         (r as PromiseRejectedResult).reason?.message,
       );
     }
   });
 
   // Massive entries overwrite YF on any overlap (there shouldn't be any)
-  for (const t of [...massiveIndices, ...massiveCrypto, ...massiveForex]) {
+  for (const t of [...upstoxIndices, ...massiveIndices, ...massiveCrypto, ...massiveForex]) {
     dataMap.set(t.symbol, t);
   }
 

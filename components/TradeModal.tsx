@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
-import { cn } from '@/lib/utils';
+import { cn, displaySymbol } from '@/lib/utils';
+import { DATA_SOURCES_TEXT } from '@/lib/data-sources';
 import { useSidebar } from './SidebarContext';
 import { useHoldings } from './HoldingsContext';
 import { ImportModal } from './ImportModal';
@@ -339,7 +340,7 @@ function ModalContent({ onClose, initialValues }: { onClose: () => void; initial
               </div>
             </div>
           ) : (
-            <div className="p-8 space-y-7 max-h-[75vh] overflow-y-auto scrollbar-thin">
+            <div data-lenis-prevent className="p-8 space-y-7 max-h-[75vh] overflow-y-auto scrollbar-thin">
 
               {/* ── Asset Class ── */}
               <div>
@@ -445,7 +446,7 @@ function ModalContent({ onClose, initialValues }: { onClose: () => void; initial
                         >
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="text-[13px] font-black text-[#dde2f8] truncate">{q.symbol}</span>
+                              <span className="text-[13px] font-black text-[#dde2f8] truncate">{displaySymbol(q.symbol)}</span>
                               <span className={cn(
                                 'text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded',
                                 QUOTE_TYPE_COLOR[q.quoteType] ?? 'text-[#8c909f] bg-[#8c909f]/10'
@@ -457,7 +458,7 @@ function ModalContent({ onClose, initialValues }: { onClose: () => void; initial
                         </button>
                       ))}
                       <div className="px-4 py-2 border-t border-[#2f3445]/50">
-                        <p className="text-[9px] text-[#424754] font-semibold">Data via Yahoo Finance · NSE · BSE</p>
+                        <p className="text-[9px] text-[#424754] font-semibold leading-relaxed">Data via {DATA_SOURCES_TEXT}</p>
                       </div>
                     </motion.div>
                   )}

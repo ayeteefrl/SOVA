@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { KPICard } from '@/components/ui/KPICard';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { motion, AnimatePresence } from 'framer-motion';
-import { formatINR, cn } from '@/lib/utils';
+import { formatINR, cn, displaySymbol } from '@/lib/utils';
 import { createPortal } from 'react-dom';
 
 
@@ -165,7 +165,7 @@ function AddETFModal({ onClose, onSave }: { onClose: () => void; onSave: (etf: P
         </div>
 
         {/* Body */}
-        <div className="p-8 space-y-5 max-h-[75vh] overflow-y-auto">
+        <div data-lenis-prevent className="p-8 space-y-5 max-h-[75vh] overflow-y-auto">
 
           {/* Ticker search */}
           <div ref={searchRef} className="relative">
@@ -237,7 +237,7 @@ function AddETFModal({ onClose, onSave }: { onClose: () => void; onSave: (etf: P
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-[13px] font-black text-[#dde2f8] truncate">{q.symbol}</span>
+                          <span className="text-[13px] font-black text-[#dde2f8] truncate">{displaySymbol(q.symbol)}</span>
                           <span className={cn(
                             'text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded',
                             QUOTE_TYPE_COLOR[q.quoteType] ?? 'text-[#8c909f] bg-[#8c909f]/10'
@@ -448,7 +448,7 @@ function EditETFModal({ etf, onClose, onSave }: { etf: ETF; onClose: () => void;
           </button>
         </div>
 
-        <div className="p-8 space-y-5 max-h-[70vh] overflow-y-auto">
+        <div data-lenis-prevent className="p-8 space-y-5 max-h-[70vh] overflow-y-auto">
           <div>
             <label className={labelCls}>ETF Name</label>
             <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}

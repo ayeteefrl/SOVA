@@ -5,6 +5,11 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** Plain symbol for display: "RELIANCE.NS" → "RELIANCE". Suffixes are only a routing hint internally. */
+export function displaySymbol(symbol: string | null | undefined): string {
+  return (symbol ?? '').replace(/\.(NS|BO|BSE|NSE)$/i, '');
+}
+
 // Approximate exchange rates relative to INR (updated periodically)
 export const FX_RATES: Record<string, number> = {
   INR: 1,

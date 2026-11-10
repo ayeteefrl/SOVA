@@ -7,7 +7,7 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { DeltaChip } from '@/components/ui/Chip';
 import { watchlist as defaultWatchlist } from '@/lib/data';
-import { cn, formatINR, formatDelta } from '@/lib/utils';
+import { cn, formatINR, formatDelta, displaySymbol } from '@/lib/utils';
 import { Segmented } from '@/components/ui/Segmented';
 import { checkWatchlistAlerts } from '@/lib/alerts';
 
@@ -70,7 +70,7 @@ const MOCK_SEARCH: SearchQuote[] = [
   { symbol: 'BAJFINANCE.NS', shortName: 'Bajaj Finance', exchange: 'NSE', quoteType: 'EQUITY' },
   { symbol: 'ASIANPAINT.NS', shortName: 'Asian Paints', exchange: 'NSE', quoteType: 'EQUITY' },
   { symbol: 'LT.NS', shortName: 'Larsen & Toubro', exchange: 'NSE', quoteType: 'EQUITY' },
-  { symbol: 'ZOMATO.NS', shortName: 'Zomato', exchange: 'NSE', quoteType: 'EQUITY' },
+  { symbol: 'ETERNAL.NS', shortName: 'Eternal (Zomato)', exchange: 'NSE', quoteType: 'EQUITY' },
   { symbol: 'NYKAA.NS', shortName: 'FSN E-Commerce Ventures (Nykaa)', exchange: 'NSE', quoteType: 'EQUITY' },
   { symbol: 'DMART.NS', shortName: 'Avenue Supermarts (DMart)', exchange: 'NSE', quoteType: 'EQUITY' },
   { symbol: 'IRCTC.NS', shortName: 'Indian Railway Catering & Tourism', exchange: 'NSE', quoteType: 'EQUITY' },
@@ -80,7 +80,7 @@ const MOCK_SEARCH: SearchQuote[] = [
   { symbol: 'HINDUNILVR.NS', shortName: 'Hindustan Unilever', exchange: 'NSE', quoteType: 'EQUITY' },
   { symbol: 'MARUTI.NS', shortName: 'Maruti Suzuki India', exchange: 'NSE', quoteType: 'EQUITY' },
   { symbol: 'TITAN.NS', shortName: 'Titan Company', exchange: 'NSE', quoteType: 'EQUITY' },
-  { symbol: 'TATAMOTORS.NS', shortName: 'Tata Motors', exchange: 'NSE', quoteType: 'EQUITY' },
+  { symbol: 'TMPV.NS', shortName: 'Tata Motors Passenger Vehicles', exchange: 'NSE', quoteType: 'EQUITY' },
   { symbol: 'SUNPHARMA.NS', shortName: 'Sun Pharmaceutical Industries', exchange: 'NSE', quoteType: 'EQUITY' },
   { symbol: 'KOTAKBANK.NS', shortName: 'Kotak Mahindra Bank', exchange: 'NSE', quoteType: 'EQUITY' },
   { symbol: 'AXISBANK.NS', shortName: 'Axis Bank', exchange: 'NSE', quoteType: 'EQUITY' },
@@ -215,7 +215,7 @@ function AddTickerModal({
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-[13px] font-black text-[#dde2f8]">{q.symbol}</span>
+                        <span className="text-[13px] font-black text-[#dde2f8]">{displaySymbol(q.symbol)}</span>
                         <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded text-[#adc6ff] bg-[#adc6ff]/10">{q.quoteType === 'MUTUALFUND' ? 'MF' : q.quoteType}</span>
                       </div>
                       <p className="text-[11px] text-[#8c909f] truncate">{q.shortName}</p>
@@ -229,7 +229,7 @@ function AddTickerModal({
             {selected && (
               <div className="mt-2 px-3 py-2 rounded-lg flex items-center gap-2" style={{ background: '#4d8eff15', border: '1px solid #4d8eff30' }}>
                 <span className="material-symbols-outlined text-sm text-[#4d8eff]">check_circle</span>
-                <span className="text-[11px] font-bold text-[#adc6ff]">{selected.symbol}</span>
+                <span className="text-[11px] font-bold text-[#adc6ff]">{displaySymbol(selected.symbol)}</span>
                 <span className="text-[11px] text-[#8c909f] truncate">{selected.shortName}</span>
                 <button onClick={() => { setSelected(null); setQuery(''); }} className="ml-auto text-[#8c909f] hover:text-[#ffb2b7]">
                   <span className="material-symbols-outlined text-sm">close</span>
@@ -536,7 +536,7 @@ export default function WatchlistPage() {
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-outline">{w.ticker}</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-outline">{displaySymbol(w.ticker)}</p>
                     <p className="text-sm font-black text-on-surface mt-0.5 truncate">{w.name}</p>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0 ml-2">
@@ -670,7 +670,7 @@ export default function WatchlistPage() {
                 <div>
                   <p className="text-xs font-black text-on-surface">{w.name}</p>
                   <div className="flex items-center gap-1.5">
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-outline">{w.ticker}</p>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-outline">{displaySymbol(w.ticker)}</p>
                     {w.alertAbove && (
                       <span className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded-full text-[8px] font-black bg-secondary/10 text-secondary">
                         ▲ ₹{w.alertAbove.toLocaleString('en-IN')}

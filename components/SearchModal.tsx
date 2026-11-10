@@ -5,7 +5,8 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { DeltaChip, Chip } from '@/components/ui/Chip';
-import { cn, formatINR, formatNumber } from '@/lib/utils';
+import { cn, formatINR, formatNumber, displaySymbol } from '@/lib/utils';
+import { DATA_SOURCES_TEXT } from '@/lib/data-sources';
 
 /* ─── Types ─────────────────────────────────────────────────── */
 type SearchResult = {
@@ -127,7 +128,7 @@ function WatchlistPicker({
       marketCap: detail.marketCap ? `₹${(detail.marketCap / 1e7).toFixed(0)} Cr` : '—',
       pe: detail.trailingPE ?? 0,
     });
-    onDone(`${detail.symbol} added to ${list.name}`);
+    onDone(`${displaySymbol(detail.symbol)} added to ${list.name}`);
   }
 
   return (
@@ -346,7 +347,7 @@ export function SearchModal({ open, onClose }: Props) {
                 {/* Left: results list */}
                 <div
                   ref={listRef}
-                  className={cn('overflow-y-auto scrollbar-thin', selected ? 'w-1/2' : 'w-full')}
+                  data-lenis-prevent className={cn('overflow-y-auto scrollbar-thin', selected ? 'w-1/2' : 'w-full')}
                 >
                   {results.length === 0 && !searching && query.length > 0 && (
                     <div className="px-5 py-10 text-center">
@@ -402,7 +403,7 @@ export function SearchModal({ open, onClose }: Props) {
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-black text-on-surface truncate">{r.shortName}</p>
                           <p className="text-[9px] font-bold text-outline uppercase tracking-widest mt-0.5">
-                            {r.symbol} · {r.exchange}
+                            {displaySymbol(r.symbol)} · {r.exchange}
                           </p>
                         </div>
                         <Chip
@@ -418,7 +419,7 @@ export function SearchModal({ open, onClose }: Props) {
 
                 {/* Right: detail panel */}
                 {selected && (
-                  <div className="w-1/2 overflow-y-auto scrollbar-thin p-6 flex flex-col gap-5">
+                  <div data-lenis-prevent className="w-1/2 overflow-y-auto scrollbar-thin p-6 flex flex-col gap-5">
                     {loadingDetail ? (
                       <div className="space-y-4">
                         <Skeleton className="h-6 w-3/4" />
@@ -433,7 +434,7 @@ export function SearchModal({ open, onClose }: Props) {
                         {/* Header */}
                         <div>
                           <p className="text-[10px] font-black uppercase tracking-widest text-outline">
-                            {detail.symbol} · {detail.exchange}
+                            {displaySymbol(detail.symbol)} · {detail.exchange}
                           </p>
                           <p className="text-sm font-black text-on-surface mt-0.5 leading-tight">
                             {detail.longName || detail.shortName}
@@ -561,8 +562,8 @@ export function SearchModal({ open, onClose }: Props) {
 
               {/* Footer */}
               <div className="px-5 py-2.5 border-t border-outline-variant/10 flex items-center gap-4">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-outline">
-                  Data via Yahoo Finance · NSE · BSE
+                <p className="text-[9px] font-bold uppercase tracking-widest text-outline leading-relaxed max-w-[65%]">
+                  Data via {DATA_SOURCES_TEXT}
                 </p>
                 <div className="ml-auto flex items-center gap-3">
                   <span className="text-[9px] font-bold uppercase tracking-widest text-outline">↑↓ navigate</span>
