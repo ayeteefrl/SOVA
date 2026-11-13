@@ -168,3 +168,9 @@
   backdrop-filter: blur(12px);
   box-shadow: 0 24px 48px -18px rgba(8, 14, 29, 0.8);
 }
+
+/* Auto-dismiss countdown bar for toasts: shrinks right-to-left over its duration. */
+@keyframes toast-countdown {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}

@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { Holding, ActivityItem } from '@/lib/data';
 import { checkPortfolioAlerts, checkHoldingAlerts } from '@/lib/alerts';
+import { subscribeKiteAuth } from '@/lib/kite-connect';
 
 interface HoldingsContextType {
   equityHoldings: Holding[];
@@ -272,6 +273,14 @@ export function HoldingsProvider({ children }: { children: React.ReactNode }) {
     fetchHoldings();
   }, [fetchHoldings]);
 
+  // The Zerodha login popup (lib/kite-connect.ts) reports back here — reload
+  // live data as soon as a fresh token has been saved.
+  useEffect(() => {
+    return subscribeKiteAuth((status) => {
+      if (status === 'success') fetchHoldings();
+    });
+  }, [fetchHoldings]);
+
   // Refresh live prices every 30 seconds — only for custom holdings (Zerodha data is authoritative)
   useEffect(() => {
     const id = setInterval(async () => {
@@ -460,19 +469,11 @@ async function fetchAllSources(): Promise<{
 }> {
   const fetchZerodha = async () => {
     try {
-      let [equityRes, mfRes] = await Promise.all([
+      // Kite tokens expire daily with no refresh token — a 401 means a fresh login is needed.
+      const [equityRes, mfRes] = await Promise.all([
         fetch('/api/kite/holdings'),
         fetch('/api/kite/mf'),
       ]);
-      if (equityRes.status === 401) {
-        const r = await fetch('/api/auth/kite/refresh', { method: 'POST' });
-        if (r.ok) {
-          [equityRes, mfRes] = await Promise.all([
-            fetch('/api/kite/holdings'),
-            fetch('/api/kite/mf'),
-          ]);
-        }
-      }
       if (equityRes.status === 401) return { equity: [], connected: false, mf: [] };
       // connected requires an actual OK response, not just "not a 401" — a 500 or
       // other failure must not be reported as connected (same class of bug fixed

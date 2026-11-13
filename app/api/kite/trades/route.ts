@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { getKiteClient, shouldRefresh, triggerSilentRefresh } from '@/lib/kite-client';
+import { getKiteClient } from '@/lib/kite-client';
 import { getSession } from '@/lib/session';
 import type { ActivityItem } from '@/lib/data';
 
@@ -14,10 +14,6 @@ export async function GET(req: NextRequest) {
   const kc = await getKiteClient(session.userId);
   if (!kc) {
     return NextResponse.json({ error: 'reconnect_required' }, { status: 401 });
-  }
-
-  if (await shouldRefresh(session.userId)) {
-    triggerSilentRefresh();
   }
 
   try {

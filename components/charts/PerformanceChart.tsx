@@ -14,6 +14,7 @@ import {
 import { Segmented } from '@/components/ui/Segmented';
 import { formatINR } from '@/lib/utils';
 import { useHoldings } from '@/components/HoldingsContext';
+import { openKiteLogin } from '@/lib/kite-connect';
 
 type DataPoint = { label: string; value: number; benchmark: number; isFYEnd: boolean; date?: string };
 type ViewMode = '₹' | '%';
@@ -207,14 +208,15 @@ export function PerformanceChart() {
               </p>
             </div>
             {needsKiteReconnect && (
-              <a
-                href="/api/auth/kite/login"
+              <button
+                type="button"
+                onClick={() => openKiteLogin()}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all hover:scale-[1.02]"
                 style={{ background: 'linear-gradient(135deg, #4d8eff 0%, #adc6ff 100%)', color: '#001a42' }}
               >
                 <span className="material-symbols-outlined text-sm">add_link</span>
                 Connect Zerodha
-              </a>
+              </button>
             )}
           </div>
         ) : (

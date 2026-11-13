@@ -49,40 +49,11 @@ export async function saveSession(userId: string, accessToken: string, encToken:
     });
 }
 
-// Check if the session needs a token refresh.
-// Zerodha access tokens expire at midnight IST — check every ~20 hours to stay ahead.
-export async function shouldRefresh(userId: string): Promise<boolean> {
-  try {
-    const { data: sessions, error } = await supabase
-      .from('broker_sessions')
-      .select('last_refreshed_at')
-      .eq('user_id', userId)
-      .eq('broker', 'zerodha')
-      .order('last_refreshed_at', { ascending: false })
-      .limit(1);
-
-    const session = sessions?.[0];
-
-    if (error || !session) return false;
-
-    const lastRefreshed = new Date(session.last_refreshed_at);
-    const now = new Date();
-    const hoursSinceRefresh = (now.getTime() - lastRefreshed.getTime()) / (1000 * 60 * 60);
-
-    return hoursSinceRefresh > 20;
-  } catch {
-    return false;
-  }
-}
-
 // Returns a bare KiteConnect instance (for login flow, no token needed)
 export function createKiteClient(): KiteInstance {
   return new KiteConnect({ api_key: process.env.KITE_API_KEY! });
 }
 
-// Fire-and-forget: triggers background session refresh without blocking the caller
-export function triggerSilentRefresh(): void {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
-    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-  fetch(`${baseUrl}/api/auth/kite/refresh`, { method: 'POST', credentials: 'include' }).catch(() => {});
-}
+// NOTE: Kite Connect access tokens expire every day at ~6 AM IST and there is no
+// refresh token for regular API apps, so the only way to renew is a fresh login.
+// See components/KiteAuthBanner.tsx and lib/kite-connect.ts for the one-click popup flow.

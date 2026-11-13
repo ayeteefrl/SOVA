@@ -10,6 +10,7 @@ import { useSettings, type ThemeId } from '@/components/SettingsContext';
 import { ExportPortfolio } from '@/components/ExportPortfolio';
 import { ImportModal } from '@/components/ImportModal';
 import { useHoldings } from '@/components/HoldingsContext';
+import { openKiteLogin, subscribeKiteAuth } from '@/lib/kite-connect';
 
 function LogoutButton() {
   const router = useRouter();
@@ -446,7 +447,17 @@ function IntegrationsPanel() {
       setConnectingUpstox(false);
     };
     window.addEventListener('pageshow', resetConnecting);
-    return () => window.removeEventListener('pageshow', resetConnecting);
+
+    // Zerodha login popup result
+    const unsubscribeKite = subscribeKiteAuth((status) => {
+      setConnectingKite(false);
+      if (status === 'success') setKiteStatus('connected');
+    });
+
+    return () => {
+      window.removeEventListener('pageshow', resetConnecting);
+      unsubscribeKite();
+    };
   }, []);
 
   async function handleDisconnect(broker: string, url: string, cacheKey?: string) {
@@ -473,7 +484,10 @@ function IntegrationsPanel() {
           description={kiteStatus === 'connected' ? 'Live holdings, trades, and portfolio data streaming from your Zerodha account.' : 'Connect your Zerodha account for live portfolio data, holdings, and trade history.'}
           status={kiteStatus}
           connecting={connectingKite} disconnecting={disconnecting === 'zerodha'}
-          onConnect={() => { setConnectingKite(true); window.location.href = '/api/auth/kite/login'; }}
+          onConnect={() => {
+            setConnectingKite(true);
+            openKiteLogin({ onClosed: () => setConnectingKite(false) });
+          }}
           onDisconnect={() => handleDisconnect('zerodha', '/api/auth/kite/disconnect', 'zerodha')}
         />
 
