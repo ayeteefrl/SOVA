@@ -100,7 +100,7 @@ function TaxDetailModal({ candidate, onClose }: { candidate: TaxCandidate; onClo
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-surface-container-low rounded-2xl p-8 w-full max-w-lg shadow-2xl border border-outline-variant/20 max-h-[90vh] overflow-y-auto"
+        data-lenis-prevent className="bg-surface-container-low rounded-2xl p-8 w-full max-w-lg shadow-2xl border border-outline-variant/20 max-h-[90vh] overflow-y-auto"
       >
         <div className="flex items-start justify-between mb-6">
           <div>

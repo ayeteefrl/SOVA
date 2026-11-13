@@ -25,7 +25,7 @@ function EquityMap({ holdings }: { holdings: Holding[] }) {
   }
 
   return (
-    <div className="space-y-2 overflow-y-auto max-h-64 pr-1 scrollbar-thin">
+    <div data-lenis-prevent className="space-y-2 overflow-y-auto max-h-64 pr-1 scrollbar-thin">
       {sorted.map((h, i) => {
         const pct = total > 0 ? (h.value / total) * 100 : 0;
         const color = colors[i % colors.length];
@@ -198,7 +198,7 @@ export function ExposureCard() {
         </select>
       </div>
 
-      <div className={view === 'equity' ? 'overflow-y-auto' : ''}>
+      <div data-lenis-prevent className={view === 'equity' ? 'overflow-y-auto' : ''}>
         {view === 'sector' ? <SectorBars data={sectorData} /> : <EquityMap holdings={equityHoldings} />}
       </div>
 

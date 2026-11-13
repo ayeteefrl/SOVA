@@ -251,7 +251,7 @@ function ModalContent({ onClose, onImported }: { onClose: () => void; onImported
             </button>
           </div>
 
-          <div className="p-8 max-h-[75vh] overflow-y-auto scrollbar-thin">
+          <div data-lenis-prevent className="p-8 max-h-[75vh] overflow-y-auto scrollbar-thin">
             <AnimatePresence mode="wait">
 
               {/* ── Step 1: Upload ── */}

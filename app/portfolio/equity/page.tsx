@@ -160,7 +160,7 @@ export default function EquityPage() {
                 </div>
 
                 {/* Legend with mini progress bars */}
-                <div className="flex-1 w-full space-y-1 overflow-y-auto">
+                <div data-lenis-prevent className="flex-1 w-full space-y-1 overflow-y-auto">
                   {pieData.map((d, i) => {
                     const isActive = i === activeIdx;
                     const pct = ((d.value / total) * 100).toFixed(1);
@@ -453,7 +453,7 @@ function AddEquityModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        <div data-lenis-prevent className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           <div>
             <label className="block text-[10px] font-black uppercase tracking-widest text-[#8c909f] mb-2">
               Company Name
@@ -646,7 +646,7 @@ function EditEquityModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        <div data-lenis-prevent className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {/* Live price reminder */}
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/8 ring-1 ring-primary/20">
             <span className="material-symbols-outlined text-sm text-primary-fixed-dim shrink-0">info</span>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import dynamic from 'next/dynamic';
+import { useLenis } from 'lenis/react';
 
 const SignInModal = dynamic(() => import('./SignInModal'), { ssr: false });
 
@@ -20,11 +21,9 @@ export default function LandingNav() {
   const [showSignIn, setShowSignIn] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 30);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+  // The landing page scrolls inside the Lenis container (not the window), so
+  // read scroll position from Lenis — window.scrollY stays at 0 here.
+  const lenis = useLenis(({ scroll }) => setScrolled(scroll > 30));
 
   // Close mobile menu on resize to desktop
   useEffect(() => {
@@ -37,7 +36,12 @@ export default function LandingNav() {
     e.preventDefault();
     setMenuOpen(false);
     const id = href.replace('#', '');
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (lenis) {
+      lenis.resize(); // lazy-loaded sections may have changed the page height since last measure
+      lenis.scrollTo(el);
+    } else el.scrollIntoView({ behavior: 'smooth' });
   }
 
   return (

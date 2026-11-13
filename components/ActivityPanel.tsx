@@ -120,7 +120,7 @@ export function ActivityPanel() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1, transition: { delay: 0.12 } }}
             exit={{ opacity: 0, transition: { duration: 0.08 } }}
-            className="flex-1 overflow-y-auto scrollbar-thin"
+            data-lenis-prevent className="flex-1 overflow-y-auto scrollbar-thin"
           >
             <div className="p-5 pt-4">
               <p className="text-[9px] font-black uppercase tracking-[0.25em] text-outline mb-5">

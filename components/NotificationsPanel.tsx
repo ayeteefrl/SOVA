@@ -126,7 +126,7 @@ export function NotificationsPanel({ open, onClose, onUnreadChange }: Notificati
             </div>
 
             {/* Feed */}
-            <div className="max-h-[500px] overflow-y-auto scrollbar-thin">
+            <div data-lenis-prevent className="max-h-[500px] overflow-y-auto scrollbar-thin">
               {items.length === 0 && (
                 <div className="py-16 text-center">
                   <span className="material-symbols-outlined text-4xl text-outline/40">notifications_off</span>

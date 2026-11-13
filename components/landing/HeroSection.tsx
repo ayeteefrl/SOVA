@@ -3,10 +3,12 @@
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { useLenis } from 'lenis/react';
 
 const CurrencyCanvas = dynamic(() => import('./CurrencyCanvas'), { ssr: false });
 
 export default function HeroSection() {
+  const lenis = useLenis();
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
       {/* Canvas background — hidden on small screens to avoid overlapping content */}
@@ -102,7 +104,12 @@ export default function HeroSection() {
             href="#features"
             onClick={(e) => {
               e.preventDefault();
-              document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
+              const el = document.getElementById('features');
+              if (!el) return;
+              if (lenis) {
+                lenis.resize(); // lazy-loaded sections may have changed the page height since last measure
+                lenis.scrollTo(el);
+              } else el.scrollIntoView({ behavior: 'smooth' });
             }}
             className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-outline hover:text-on-surface transition-colors"
           >

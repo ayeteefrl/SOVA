@@ -174,7 +174,7 @@ function EditPropertyModal({
           </button>
         </div>
 
-        <div className="p-8 max-h-[75vh] overflow-y-auto">
+        <div data-lenis-prevent className="p-8 max-h-[75vh] overflow-y-auto">
           <div className="grid grid-cols-2 gap-4">
             {fields.map((f) => (
               <div key={f.key} className={f.full ? 'col-span-2' : ''}>
@@ -304,7 +304,7 @@ function AddPropertyModal({ onClose, onSave }: { onClose: () => void; onSave: (p
           </button>
         </div>
 
-        <div className="p-8 max-h-[75vh] overflow-y-auto">
+        <div data-lenis-prevent className="p-8 max-h-[75vh] overflow-y-auto">
           <div className="grid grid-cols-2 gap-4">
             {fields.map((f) => (
               <div key={f.key} className={f.full ? 'col-span-2' : ''}>

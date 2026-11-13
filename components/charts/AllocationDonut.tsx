@@ -187,7 +187,7 @@ export function AllocationDonut() {
             </div>
 
             {/* Legend */}
-            <div className="flex-1 w-full space-y-1.5 overflow-y-auto max-h-56">
+            <div data-lenis-prevent className="flex-1 w-full space-y-1.5 overflow-y-auto max-h-56">
               {pieData.map((d, i) => {
                 const isActive = i === active;
                 const p = ((d.value / pieTotal) * 100).toFixed(1);
@@ -335,7 +335,7 @@ export function AllocationDonut() {
                 </div>
 
                 {/* Sector legend */}
-                <div className="flex-1 w-full space-y-1.5 overflow-y-auto max-h-56">
+                <div data-lenis-prevent className="flex-1 w-full space-y-1.5 overflow-y-auto max-h-56">
                   {sectorData.map((s, i) => {
                     const isActive = i === active;
                     return (

@@ -244,7 +244,7 @@ function AddSIPModal({ onClose, onSave }: { onClose: () => void; onSave: (sip: P
             <span className="material-symbols-outlined text-xl">close</span>
           </button>
         </div>
-        <div className="p-8 space-y-5 max-h-[75vh] overflow-y-auto">
+        <div data-lenis-prevent className="p-8 space-y-5 max-h-[75vh] overflow-y-auto">
           <div>
             <label className={labelCls}>Fund Name *</label>
             <input type="text" placeholder="e.g. Parag Parikh Flexi Cap" value={form.fund_name} onChange={(e) => setForm((f) => ({ ...f, fund_name: e.target.value }))} className={inputCls} style={inputStyle} />
@@ -345,7 +345,7 @@ function EditSIPModal({ sip, onClose, onSave }: { sip: SIP; onClose: () => void;
             <span className="material-symbols-outlined text-xl">close</span>
           </button>
         </div>
-        <div className="p-8 space-y-5 max-h-[75vh] overflow-y-auto">
+        <div data-lenis-prevent className="p-8 space-y-5 max-h-[75vh] overflow-y-auto">
           <div>
             <label className={labelCls}>Fund Name</label>
             <input type="text" value={form.fund_name} onChange={(e) => setForm((f) => ({ ...f, fund_name: e.target.value }))} className={inputCls} style={inputStyle} />

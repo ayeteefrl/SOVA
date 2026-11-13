@@ -629,7 +629,7 @@ function ActivityFormModal({
   const inputCls = 'w-full rounded-lg px-4 py-2.5 text-sm text-[#dde2f8] placeholder:text-[#424754] focus:outline-none focus:ring-1 focus:ring-[#4d8eff]/50';
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
+    <div data-lenis-prevent className="fixed inset-0 z-[300] flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
       <div className="absolute inset-0 bg-[#080e1d]/75 backdrop-blur-xl" />
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 16 }}
