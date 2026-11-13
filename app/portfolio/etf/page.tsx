@@ -7,6 +7,7 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatINR, cn, displaySymbol } from '@/lib/utils';
 import { createPortal } from 'react-dom';
+import { OpenChartButton } from '@/components/hive-gate/ChartsEntry';
 
 
 type ETF = {
@@ -674,6 +675,7 @@ export default function ETFPage() {
                       {returnPct >= 0 ? '+' : ''}{returnPct.toFixed(2)}%
                     </p>
                     <div className="flex gap-1 justify-end">
+                      <OpenChartButton ticker={e.ticker} size="sm" />
                       <button onClick={() => setEditingETF(e)} className="text-outline hover:text-primary-fixed-dim transition-colors" title="Edit">
                         <span className="material-symbols-outlined text-sm">edit</span>
                       </button>

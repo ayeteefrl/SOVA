@@ -1,0 +1,872 @@
+[
+ {
+  "id": "STD;24h%Volume",
+  "name": "24-hour volume",
+  "kind": "study",
+  "ver": "9.0"
+ },
+ {
+  "id": "STD;Accumulation_Distribution",
+  "name": "Accumulation/distribution",
+  "kind": "study",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;Advance%1Decline%1Line",
+  "name": "Advance-decline line",
+  "kind": "study",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;Advance%1Decline%1Ratio",
+  "name": "Advance-decline ratio",
+  "kind": "study",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;Advance_Decline_Ratio_Bars",
+  "name": "Advance-decline ratio (bars)",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;Arnaud%1Legoux%1Moving%1Average",
+  "name": "Arnaud Legoux moving average",
+  "kind": "study",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;Aroon",
+  "name": "Aroon",
+  "kind": "study",
+  "ver": "33.0"
+ },
+ {
+  "id": "STD;Aroon_Oscillator",
+  "name": "Aroon oscillator",
+  "kind": "study",
+  "ver": "4.0"
+ },
+ {
+  "id": "STD;Auto%1Fib%1Extension%1",
+  "name": "Auto fib extension",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;Auto%1Fib%1Retracement%1",
+  "name": "Auto fib retracement",
+  "kind": "study",
+  "ver": "41.0"
+ },
+ {
+  "id": "STD;Auto_Key_Levels",
+  "name": "Auto key levels",
+  "kind": "study",
+  "ver": "4.0"
+ },
+ {
+  "id": "STD;Auto%1Pitchfork",
+  "name": "Auto pitchfork",
+  "kind": "study",
+  "ver": "13.0"
+ },
+ {
+  "id": "STD;Auto_Trend_Detector",
+  "name": "Auto trend detector",
+  "kind": "study",
+  "ver": "4.0"
+ },
+ {
+  "id": "STD;Average%Day%Range",
+  "name": "Average daily range",
+  "kind": "study",
+  "ver": "9.0"
+ },
+ {
+  "id": "STD;Average%1Directional%1Index",
+  "name": "Average directional index",
+  "kind": "study",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;Average_True_Range",
+  "name": "Average true range",
+  "kind": "study",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;Awesome_Oscillator",
+  "name": "Awesome oscillator",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;Balance%1of%1Power",
+  "name": "Balance of power",
+  "kind": "study",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;Bars%1Up%1Dn%1Strategy",
+  "name": "Bar up/down strategy",
+  "kind": "strategy",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;BBTrend",
+  "name": "BBTrend",
+  "kind": "study",
+  "ver": "5.0"
+ },
+ {
+  "id": "STD;Bollinger_Bands",
+  "name": "Bollinger Bands",
+  "kind": "study",
+  "ver": "35.0"
+ },
+ {
+  "id": "STD;Bollinger_Bands_B",
+  "name": "Bollinger Bands %b",
+  "kind": "study",
+  "ver": "36.0"
+ },
+ {
+  "id": "STD;Bollinger%1Bands%1Strategy",
+  "name": "Bollinger Bands strategy",
+  "kind": "strategy",
+  "ver": "29.0"
+ },
+ {
+  "id": "STD;Bollinger%1Band%1Directed%1Strategy",
+  "name": "Bollinger Bands strategy directed",
+  "kind": "strategy",
+  "ver": "29.0"
+ },
+ {
+  "id": "STD;Bollinger_Bands_Width",
+  "name": "Bollinger BandWidth",
+  "kind": "study",
+  "ver": "34.0"
+ },
+ {
+  "id": "STD;Bollinger%1Bars",
+  "name": "Bollinger Bars",
+  "kind": "study",
+  "ver": "4.0"
+ },
+ {
+  "id": "STD;Bull%Bear%Power",
+  "name": "Bull bear power",
+  "kind": "study",
+  "ver": "7.0"
+ },
+ {
+  "id": "STD;Chaikin_Money_Flow",
+  "name": "Chaikin money flow",
+  "kind": "study",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;Chaikin_Oscillator",
+  "name": "Chaikin oscillator",
+  "kind": "study",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;Chande%1Kroll%1Stop",
+  "name": "Chande Kroll stop",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;Chandelier_Exit",
+  "name": "Chandelier exit",
+  "kind": "study",
+  "ver": "4.0"
+ },
+ {
+  "id": "STD;Chande_Momentum_Oscillator",
+  "name": "Chande momentum oscillator",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;Channel%1BreakOut%1Strategy",
+  "name": "Channel breakout strategy",
+  "kind": "strategy",
+  "ver": "29.0"
+ },
+ {
+  "id": "STD;Choppiness_Index",
+  "name": "Choppiness index",
+  "kind": "study",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;Chop%1Zone",
+  "name": "Chop zone",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;CCI",
+  "name": "Commodity channel index",
+  "kind": "study",
+  "ver": "40.0"
+ },
+ {
+  "id": "STD;Connors_RSI",
+  "name": "Connors RSI",
+  "kind": "study",
+  "ver": "33.0"
+ },
+ {
+  "id": "STD;Consecutive%1Ups%1Downs%1Strategy",
+  "name": "Consecutive up/down strategy",
+  "kind": "strategy",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;Coppock%1Curve",
+  "name": "Coppock curve",
+  "kind": "study",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;Correlation_Coeff",
+  "name": "Correlation coefficient",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;Cumulative%1Volume%1Delta",
+  "name": "Cumulative volume delta",
+  "kind": "study",
+  "ver": "10.0"
+ },
+ {
+  "id": "STD;Cumulative%1Volume%1Index",
+  "name": "Cumulative volume index",
+  "kind": "study",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;DPO",
+  "name": "Detrended price oscillator",
+  "kind": "study",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;DMI",
+  "name": "Directional movement index",
+  "kind": "study",
+  "ver": "34.0"
+ },
+ {
+  "id": "STD;Donchian_Channels",
+  "name": "Donchian channels",
+  "kind": "study",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;DEMA",
+  "name": "Double exponential moving average",
+  "kind": "study",
+  "ver": "33.0"
+ },
+ {
+  "id": "STD;EOM",
+  "name": "Ease of movement",
+  "kind": "study",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;EFI",
+  "name": "Elder&#039;s force index",
+  "kind": "study",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;ENV",
+  "name": "Envelope",
+  "kind": "study",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;EMA",
+  "name": "Exponential moving average",
+  "kind": "study",
+  "ver": "38.0"
+ },
+ {
+  "id": "STD;Fisher_Transform",
+  "name": "Fisher transform",
+  "kind": "study",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;Gaps",
+  "name": "Gaps",
+  "kind": "study",
+  "ver": "9.0"
+ },
+ {
+  "id": "STD;Greedy%1Strategy",
+  "name": "Greedy strategy",
+  "kind": "strategy",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;Historical_Volatility",
+  "name": "Historical volatility",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;Hull%1MA",
+  "name": "Hull moving average",
+  "kind": "study",
+  "ver": "28.0"
+ },
+ {
+  "id": "STD;Ichimoku%1Cloud",
+  "name": "Ichimoku cloud",
+  "kind": "study",
+  "ver": "35.0"
+ },
+ {
+  "id": "STD;InSide%1Bar%1Strategy",
+  "name": "Inside bar strategy",
+  "kind": "strategy",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;Kaufmans_Adaptive_Moving_Average",
+  "name": "Kaufman&#039;s adaptive moving average",
+  "kind": "study",
+  "ver": "4.0"
+ },
+ {
+  "id": "STD;Keltner_Channels",
+  "name": "Keltner channels",
+  "kind": "study",
+  "ver": "35.0"
+ },
+ {
+  "id": "STD;Keltner%1Channel%1Strategy",
+  "name": "Keltner channels strategy",
+  "kind": "strategy",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;Klinger%1Oscillator",
+  "name": "Klinger oscillator",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;Know_Sure_Thing",
+  "name": "Know sure thing",
+  "kind": "study",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;Least%1Squares%1Moving%1Average",
+  "name": "Least squares moving average",
+  "kind": "study",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;Linear_Regression",
+  "name": "Linear regression channel",
+  "kind": "study",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;MACD%1Strategy",
+  "name": "MACD strategy",
+  "kind": "strategy",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;Mass%1Index",
+  "name": "Mass index",
+  "kind": "study",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;McGinley%1Dynamic",
+  "name": "McGinley dynamic",
+  "kind": "study",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;Median",
+  "name": "Median",
+  "kind": "study",
+  "ver": "10.0"
+ },
+ {
+  "id": "STD;Momentum",
+  "name": "Momentum",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;Momentum%1Strategy",
+  "name": "Momentum strategy",
+  "kind": "strategy",
+  "ver": "29.0"
+ },
+ {
+  "id": "STD;Money_Flow",
+  "name": "Money flow index",
+  "kind": "study",
+  "ver": "33.0"
+ },
+ {
+  "id": "STD;Moon%1Phases",
+  "name": "Moon phases",
+  "kind": "study",
+  "ver": "5.0"
+ },
+ {
+  "id": "STD;MACD",
+  "name": "Moving average convergence divergence",
+  "kind": "study",
+  "ver": "43.0"
+ },
+ {
+  "id": "STD;MovingAvg%1Cross%1Strategy",
+  "name": "Moving average crossover",
+  "kind": "strategy",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;MA%1Cross",
+  "name": "Moving average crossover",
+  "kind": "study",
+  "ver": "33.0"
+ },
+ {
+  "id": "STD;MA%Ribbon",
+  "name": "Moving average ribbon",
+  "kind": "study",
+  "ver": "16.0"
+ },
+ {
+  "id": "STD;Multi-Time%Period%Charts",
+  "name": "Multi-time period charts",
+  "kind": "study",
+  "ver": "17.0"
+ },
+ {
+  "id": "STD;Negative_Volume_Index",
+  "name": "Negative volume index",
+  "kind": "study",
+  "ver": "4.0"
+ },
+ {
+  "id": "STD;Net%1Volume",
+  "name": "Net volume",
+  "kind": "study",
+  "ver": "33.0"
+ },
+ {
+  "id": "STD;On_Balance_Volume",
+  "name": "On-balance volume",
+  "kind": "study",
+  "ver": "39.0"
+ },
+ {
+  "id": "STD;Open%Interest",
+  "name": "Open interest",
+  "kind": "study",
+  "ver": "9.0"
+ },
+ {
+  "id": "STD;OutSide%1Bar%1Strategy",
+  "name": "Outside bar strategy",
+  "kind": "strategy",
+  "ver": "29.0"
+ },
+ {
+  "id": "STD;PSAR",
+  "name": "Parabolic SAR",
+  "kind": "study",
+  "ver": "33.0"
+ },
+ {
+  "id": "STD;Parabolic%1SAR%1Strategy",
+  "name": "Parabolic SAR strategy",
+  "kind": "strategy",
+  "ver": "33.0"
+ },
+ {
+  "id": "STD;Volume%1Oscillator",
+  "name": "Percentage volume oscillator",
+  "kind": "study",
+  "ver": "33.0"
+ },
+ {
+  "id": "STD;Performance",
+  "name": "Performance",
+  "kind": "study",
+  "ver": "8.0"
+ },
+ {
+  "id": "STD;Pivot%1Extension%1Strategy",
+  "name": "Pivot extension strategy",
+  "kind": "strategy",
+  "ver": "34.0"
+ },
+ {
+  "id": "STD;Pivot%1Points%1High%1Low",
+  "name": "Pivot points high low",
+  "kind": "study",
+  "ver": "13.0"
+ },
+ {
+  "id": "STD;Pivot%1Points%1Standard",
+  "name": "Pivot points standard",
+  "kind": "study",
+  "ver": "24.0"
+ },
+ {
+  "id": "STD;Pivot%1Reversal%1Strategy",
+  "name": "Pivot reversal strategy",
+  "kind": "strategy",
+  "ver": "33.0"
+ },
+ {
+  "id": "STD;Positive_Volume_Index",
+  "name": "Positive volume index",
+  "kind": "study",
+  "ver": "4.0"
+ },
+ {
+  "id": "STD;Price%1Channel%1Strategy",
+  "name": "Price channel strategy",
+  "kind": "strategy",
+  "ver": "29.0"
+ },
+ {
+  "id": "STD;Price_Momentum_Oscillator",
+  "name": "Price momentum oscillator",
+  "kind": "study",
+  "ver": "4.0"
+ },
+ {
+  "id": "STD;Price_Oscillator",
+  "name": "Price oscillator",
+  "kind": "study",
+  "ver": "35.0"
+ },
+ {
+  "id": "STD;Price%1Target",
+  "name": "Price target",
+  "kind": "study",
+  "ver": "5.0"
+ },
+ {
+  "id": "STD;Price_Volume_Trend",
+  "name": "Price-volume trend",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;Prings_Special_K",
+  "name": "Pring&#039;s special K",
+  "kind": "study",
+  "ver": "4.0"
+ },
+ {
+  "id": "STD;Rank_Correlation_Index",
+  "name": "Rank correlation index",
+  "kind": "study",
+  "ver": "6.0"
+ },
+ {
+  "id": "STD;ROC",
+  "name": "Rate of change",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;RCI_Ribbon",
+  "name": "RCI ribbon",
+  "kind": "study",
+  "ver": "4.0"
+ },
+ {
+  "id": "STD;RSI",
+  "name": "Relative strength index",
+  "kind": "study",
+  "ver": "47.0"
+ },
+ {
+  "id": "PUB;LIB_TradingView_RelativeValue",
+  "name": "RelativeValue",
+  "kind": "library",
+  "ver": "26.0"
+ },
+ {
+  "id": "STD;Relative_Vigor_Index",
+  "name": "Relative vigor index",
+  "kind": "study",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;Relative_Volatility_Index",
+  "name": "Relative volatility index",
+  "kind": "study",
+  "ver": "37.0"
+ },
+ {
+  "id": "STD;Relative%1Volume%1at%1Time",
+  "name": "Relative volume at time",
+  "kind": "study",
+  "ver": "7.0"
+ },
+ {
+  "id": "STD;Rob%1Booker%1ADX%1Breakout%1Strategy",
+  "name": "Rob Booker — ADX breakout",
+  "kind": "strategy",
+  "ver": "24.0"
+ },
+ {
+  "id": "STD;Rob%1Booker%1Ghost%1Pivots%1v2",
+  "name": "Rob Booker — Ziv ghost pivots",
+  "kind": "study",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;Divergence%1Indicator",
+  "name": "RSI divergence indicator",
+  "kind": "study",
+  "ver": "37.0"
+ },
+ {
+  "id": "STD;RSI%1Strategy",
+  "name": "RSI strategy",
+  "kind": "strategy",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;Seasonality",
+  "name": "Seasonality",
+  "kind": "study",
+  "ver": "10.0"
+ },
+ {
+  "id": "STD;SMA",
+  "name": "Simple moving average",
+  "kind": "study",
+  "ver": "41.0"
+ },
+ {
+  "id": "STD;SMI_Ergodic_Indicator_Oscillator",
+  "name": "SMI ergodic indicator",
+  "kind": "study",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;SMI_Ergodic_Oscillator",
+  "name": "SMI ergodic oscillator",
+  "kind": "study",
+  "ver": "28.0"
+ },
+ {
+  "id": "STD;Smoothed%1Moving%1Average",
+  "name": "Smoothed moving average",
+  "kind": "study",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;Stochastic",
+  "name": "Stochastic",
+  "kind": "study",
+  "ver": "33.0"
+ },
+ {
+  "id": "STD;SMI",
+  "name": "Stochastic momentum index",
+  "kind": "study",
+  "ver": "6.0"
+ },
+ {
+  "id": "STD;Stochastic_RSI",
+  "name": "Stochastic RSI",
+  "kind": "study",
+  "ver": "33.0"
+ },
+ {
+  "id": "STD;Stochastic%1Slow%1Strategy",
+  "name": "Stochastic slow strategy",
+  "kind": "strategy",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;Supertrend",
+  "name": "Supertrend",
+  "kind": "study",
+  "ver": "12.0"
+ },
+ {
+  "id": "STD;Supertrend%Strategy",
+  "name": "Supertrend strategy",
+  "kind": "strategy",
+  "ver": "9.0"
+ },
+ {
+  "id": "STD;Technical%1Ratings",
+  "name": "Technical ratings",
+  "kind": "study",
+  "ver": "18.0"
+ },
+ {
+  "id": "STD;Technical%1Ratings%1Strategy",
+  "name": "Technical ratings strategy",
+  "kind": "strategy",
+  "ver": "14.0"
+ },
+ {
+  "id": "STD;Time%1Weighted%1Average%1Price",
+  "name": "Time-weighted average price",
+  "kind": "study",
+  "ver": "7.0"
+ },
+ {
+  "id": "STD;Trading%1Sessions",
+  "name": "Trading sessions",
+  "kind": "study",
+  "ver": "7.0"
+ },
+ {
+  "id": "STD;Trend%1Strength%1Index",
+  "name": "Trend strength index",
+  "kind": "study",
+  "ver": "4.0"
+ },
+ {
+  "id": "STD;TEMA",
+  "name": "Triple exponential moving average",
+  "kind": "study",
+  "ver": "33.0"
+ },
+ {
+  "id": "STD;TRIX",
+  "name": "TRIX",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;True%1Strength%1Indicator",
+  "name": "True strength index",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;MovingAvg%1Cross2%1Strategy",
+  "name": "Two moving averages crossover",
+  "kind": "strategy",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;Ulcer_Index",
+  "name": "Ulcer index",
+  "kind": "study",
+  "ver": "4.0"
+ },
+ {
+  "id": "STD;Ultimate_Oscillator",
+  "name": "Ultimate oscillator",
+  "kind": "study",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;UP_DOWN_Volume",
+  "name": "Up/down volume",
+  "kind": "study",
+  "ver": "10.0"
+ },
+ {
+  "id": "STD;Visible%1Average%1Price",
+  "name": "Visible average price",
+  "kind": "study",
+  "ver": "5.0"
+ },
+ {
+  "id": "STD;Volty%1Expan%1Close%1Strategy",
+  "name": "Volatility expansion-close strategy",
+  "kind": "strategy",
+  "ver": "30.0"
+ },
+ {
+  "id": "STD;Volatility_Stop",
+  "name": "Volatility stop",
+  "kind": "study",
+  "ver": "21.0"
+ },
+ {
+  "id": "STD;Volume%1Delta",
+  "name": "Volume delta",
+  "kind": "study",
+  "ver": "9.0"
+ },
+ {
+  "id": "STD;VWAP",
+  "name": "Volume-weighted average price",
+  "kind": "study",
+  "ver": "48.0"
+ },
+ {
+  "id": "STD;VWMA",
+  "name": "Volume-weighted moving average",
+  "kind": "study",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;Vortex%1Indicator",
+  "name": "Vortex indicator",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;WMA",
+  "name": "Weighted moving average",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;Williams_Alligator",
+  "name": "Williams alligator",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;Whilliams_Fractals",
+  "name": "Williams fractal",
+  "kind": "study",
+  "ver": "31.0"
+ },
+ {
+  "id": "STD;Willams_R",
+  "name": "Williams percent range",
+  "kind": "study",
+  "ver": "34.0"
+ },
+ {
+  "id": "STD;Woodies%1CCI",
+  "name": "Woodies CCI",
+  "kind": "study",
+  "ver": "32.0"
+ },
+ {
+  "id": "STD;Zig_Zag",
+  "name": "Zigzag",
+  "kind": "study",
+  "ver": "44.0"
+ }
+]

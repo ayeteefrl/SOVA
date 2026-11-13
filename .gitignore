@@ -30,3 +30,9 @@ next-env.d.ts
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Chart Hive data server: runtime data and caches (seed files live in hive-server/seed and are committed)
+/hive-server/data/
+/hive-server/.env*
+!/hive-server/.env.example
+/.next-verify/

@@ -5,6 +5,11 @@ import { motion } from 'framer-motion';
 import { Holding } from '@/lib/data';
 import { cn, formatINR } from '@/lib/utils';
 import { DeltaChip } from '@/components/ui/Chip';
+import { OpenChartButton, useChartActions } from '@/components/hive-gate/ChartsEntry';
+
+// The actions column grows only for Charts members, who get an extra "Open chart" button.
+const COLS = 'grid-cols-[2fr_0.6fr_0.75fr_0.75fr_0.8fr_0.8fr_0.75fr_0.65fr_0.7fr_0.55fr_64px]';
+const COLS_WITH_CHART = 'grid-cols-[2fr_0.6fr_0.75fr_0.75fr_0.8fr_0.8fr_0.75fr_0.65fr_0.7fr_0.55fr_96px]';
 
 const BROKER_SOURCES: Holding['source'][] = ['zerodha', 'angel_one', 'upstox', 'groww'];
 const SOURCE_LABEL: Partial<Record<NonNullable<Holding['source']>, string>> = {
@@ -51,6 +56,7 @@ export function HoldingsTable({
   onDelete?: (id: string) => void;
   onEdit?: (holding: Holding) => void;
 }) {
+  const cols = useChartActions() ? COLS_WITH_CHART : COLS;
   const [sortKey, setSortKey] = useState<SortKey>(() => {
     if (typeof window === 'undefined') return 'value';
     return (localStorage.getItem('sova-sort-key') as SortKey) || 'value';
@@ -138,7 +144,7 @@ export function HoldingsTable({
       {/* ── Desktop Table (md+) ── */}
       <div className="hidden md:block overflow-x-auto -mx-4 px-4">
         <div className="min-w-[1060px]">
-          <div className="grid grid-cols-[2fr_0.6fr_0.75fr_0.75fr_0.8fr_0.8fr_0.75fr_0.65fr_0.7fr_0.55fr_64px] gap-3 px-4 py-3 border-b border-outline-variant/10">
+          <div className={`grid ${cols} gap-3 px-4 py-3 border-b border-outline-variant/10`}>
             <Header k="name" label="Instrument" />
             <div className="text-right"><Header k="value" label="Units" right /></div>
             <div className="text-right"><Header k="value" label="Avg Cost" right /></div>
@@ -162,7 +168,7 @@ export function HoldingsTable({
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: i * 0.03 }}
-                  className="grid grid-cols-[2fr_0.6fr_0.75fr_0.75fr_0.8fr_0.8fr_0.75fr_0.65fr_0.7fr_0.55fr_64px] gap-3 px-4 py-4 items-center hover:bg-surface-container-highest/20 rounded-lg transition-colors group"
+                  className={`grid ${cols} gap-3 px-4 py-4 items-center hover:bg-surface-container-highest/20 rounded-lg transition-colors group`}
                 >
                   <div>
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -208,6 +214,7 @@ export function HoldingsTable({
                     {h.weight.toFixed(1)}%
                   </p>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <OpenChartButton ticker={h.ticker} />
                     {onEdit && (
                       <button
                         onClick={() => onEdit(h)}
@@ -233,7 +240,7 @@ export function HoldingsTable({
 
             {/* Manual-additions divider */}
             {manualRows.length > 0 && (
-              <div className="grid grid-cols-[2fr_0.6fr_0.75fr_0.75fr_0.8fr_0.8fr_0.75fr_0.65fr_0.7fr_0.55fr_64px] gap-3 px-4 py-2 items-center">
+              <div className={`grid ${cols} gap-3 px-4 py-2 items-center`}>
                 <div className="col-span-full flex items-center gap-3">
                   <div className="h-px flex-1 bg-gold/15" />
                   <span className="text-[8px] font-black uppercase tracking-[0.25em] text-gold/60 flex items-center gap-1 shrink-0">
@@ -255,7 +262,7 @@ export function HoldingsTable({
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: (brokerRows.length + i) * 0.03 }}
-                  className="grid grid-cols-[2fr_0.6fr_0.75fr_0.75fr_0.8fr_0.8fr_0.75fr_0.65fr_0.7fr_0.55fr_64px] gap-3 px-4 py-4 items-center hover:bg-gold/5 rounded-lg transition-colors group"
+                  className={`grid ${cols} gap-3 px-4 py-4 items-center hover:bg-gold/5 rounded-lg transition-colors group`}
                   style={{ borderLeft: '2px solid rgba(212,175,55,0.15)' }}
                 >
                   <div>
@@ -300,6 +307,7 @@ export function HoldingsTable({
                     {h.weight.toFixed(1)}%
                   </p>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <OpenChartButton ticker={h.ticker} />
                     {onEdit && (
                       <button
                         onClick={() => onEdit(h)}
@@ -358,6 +366,7 @@ export function HoldingsTable({
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <DeltaChip value={h.daily} />
+                  <OpenChartButton ticker={h.ticker} />
                   {onEdit && (
                     <button
                       onClick={() => onEdit(h)}

@@ -1,0 +1,22 @@
+# Nothing secret or generated goes into the image. The server reads .env.local only for local
+# development; in a container all settings come from the environment.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+*.pem
+*.key
+node_modules
+data
+**/feeds.json
+**/*-cache.json
+*.tmp
+*.log
+.git
+.gitignore
+test
+fly.toml
+Dockerfile
+.dockerignore
+README.md

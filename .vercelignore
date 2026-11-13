@@ -1,0 +1,2 @@
+# The Chart Hive data server is deployed separately (hive-server/README.md), never to Vercel.
+hive-server

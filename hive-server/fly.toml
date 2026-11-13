@@ -1,0 +1,43 @@
+# TEMPLATE. Replace the app name, then deploy with:   fly deploy --ha=false
+# One always-on machine with one volume: the server keeps in-memory state and a single Upstox websocket,
+# and a second machine would need its own volume. Secrets (HIVE_TOKEN_SECRET, ALLOWED_ORIGINS,
+# UPSTOX_ANALYTICS_TOKEN) are set with `fly secrets set`, never here.
+
+app = "sova-hive-server"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  HOST = "0.0.0.0"
+  PORT = "8080"
+  QT_DATA_DIR = "/data"
+  TRUST_PROXY = "fly"
+
+[[mounts]]
+  source = "hive_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 400
+    hard_limit = 500
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/health"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

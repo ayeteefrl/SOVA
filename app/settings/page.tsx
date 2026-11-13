@@ -11,6 +11,7 @@ import { ExportPortfolio } from '@/components/ExportPortfolio';
 import { ImportModal } from '@/components/ImportModal';
 import { useHoldings } from '@/components/HoldingsContext';
 import { openKiteLogin, subscribeKiteAuth } from '@/lib/kite-connect';
+import { ChartsAccessSettingsRow } from '@/components/hive-gate/ChartsEntry';
 
 function LogoutButton() {
   const router = useRouter();
@@ -834,6 +835,7 @@ function SecurityPanel() {
       <Card tier="low" className="p-8">
         <SectionHeader title="Security" subtitle="Active sessions and access control" className="mb-6" />
         <div className="space-y-6">
+          <ChartsAccessSettingsRow />
           <div className="p-5 rounded-lg bg-surface-container-highest/20">
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm font-black text-on-surface">Active Sessions</p>

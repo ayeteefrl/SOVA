@@ -1,4 +1,7 @@
 @import 'lenis/dist/lenis.css';
+/* Explicit, because /charts builds a second stylesheet with its own config (tailwind.hive.config.ts) and
+   Tailwind 3 otherwise lets one file's @config apply to the other. */
+@config "../tailwind.config.ts";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

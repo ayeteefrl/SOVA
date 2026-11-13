@@ -15,6 +15,7 @@ import { usePortfolioTotals } from '@/lib/usePortfolioTotals';
 import { formatINR, cn } from '@/lib/utils';
 import { computeRebalancePlan, formatRebalanceSuggestion } from '@/lib/rebalance';
 import Link from 'next/link';
+import { ChartsHomeButton } from '@/components/hive-gate/ChartsEntry';
 
 const staggerVariants = {
   hidden: { opacity: 0 },
@@ -261,6 +262,7 @@ export default function HomePage() {
               <span className="material-symbols-outlined text-base">analytics</span>
               Analytics
             </Link>
+            <ChartsHomeButton />
             <button
               onClick={() => setShowRebalance(true)}
               className="px-5 h-11 flex items-center gap-2 rounded-lg text-[10px] font-black uppercase tracking-widest gradient-primary text-on-primary-container shadow-glow hover:scale-[1.02] transition-transform"

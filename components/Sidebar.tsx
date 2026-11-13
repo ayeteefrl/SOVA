@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { useSidebar } from './SidebarContext';
 import { useSettings } from './SettingsContext';
 import { useUser } from './UserContext';
+import { ChartsSidebarLink } from './hive-gate/ChartsEntry';
 
 type NavItem = {
   label: string;
@@ -208,6 +209,7 @@ export function Sidebar() {
             </Link>
           );
         })}
+        <ChartsSidebarLink collapsed={collapsed} onNavigate={closeMobile} />
       </nav>
 
       {/* ── Bottom: settings + profile ── */}

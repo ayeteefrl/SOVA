@@ -18,6 +18,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAuthPage = AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + '?'));
 
+  // Charts (Chart Hive) is full-viewport with its own shell: no sidebar, topbar, ticker or smooth
+  // scroll. Access is enforced server-side in app/charts/layout.tsx and each /charts page.
+  if (pathname === '/charts' || pathname.startsWith('/charts/')) {
+    return <ErrorBoundary label="Charts">{children}</ErrorBoundary>;
+  }
+
   if (isAuthPage) {
     return (
       <SmoothScroll className="flex-1 min-h-0 overflow-y-auto bg-surface">

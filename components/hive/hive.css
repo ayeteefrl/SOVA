@@ -1,0 +1,105 @@
+/* Chart Hive's stylesheet, ported from chart-hive/app/globals.css and scoped to .hive-root.
+   Built with its own Tailwind config (default theme + hive-* colours, utilities scoped to .hive-root, no
+   preflight). Imported only by components/hive/HiveRoot.tsx, i.e. only for members and the owner. */
+@config "../../tailwind.hive.config.ts";
+@tailwind components;
+@tailwind utilities;
+
+/* One palette for the DOM (Tailwind) and the canvas chart (read in lib/hive/theme.ts). RGB triplets. */
+.hive-root {
+  --hive-bg: 15 17 23;
+  --hive-panel: 22 25 33;
+  --hive-raised: 30 34 45;
+  --hive-hover: 42 46 57;
+  --hive-line: 42 46 57;
+  --hive-text: 209 212 220;
+  --hive-muted: 120 123 134;
+  --hive-accent: 41 98 255;
+  --hive-up: 8 153 129;
+  --hive-down: 242 54 69;
+  --hive-grid: 28 31 40;
+  color-scheme: dark;
+}
+.hive-root[data-theme="light"] {
+  --hive-bg: 255 255 255;
+  --hive-panel: 248 249 253;
+  --hive-raised: 255 255 255;
+  --hive-hover: 240 243 250;
+  --hive-line: 224 227 235;
+  --hive-text: 19 23 34;
+  --hive-muted: 120 123 134;
+  --hive-accent: 41 98 255;
+  --hive-up: 8 153 129;
+  --hive-down: 242 54 69;
+  --hive-grid: 240 243 250;
+  color-scheme: light;
+}
+
+/* The original styled html/body; here the root covers the viewport instead (SOVA's shell is bypassed for
+   /charts) and undoes SOVA's body typography (Manrope, its font features and text rendering). */
+.hive-root {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: rgb(var(--hive-bg));
+  color: rgb(var(--hive-text));
+  font-family: var(--hive-font-sans), system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  font-feature-settings: normal;
+  text-rendering: auto;
+  -webkit-font-smoothing: antialiased;
+}
+.hive-root ::selection {
+  background-color: Highlight;
+  color: HighlightText;
+}
+
+.hive-root,
+.hive-root * {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--hive-line)) transparent;
+}
+
+.hive-root .tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tool icons are drawn as 28x28 strokes. */
+.hive-root .tool-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@layer components {
+  .hive-root .btn {
+    @apply inline-flex items-center gap-1.5 rounded px-2 h-8 text-hive-text hover:bg-hive-hover transition-colors disabled:opacity-40;
+  }
+  .hive-root .btn-on {
+    @apply bg-hive-hover text-hive-accent;
+  }
+  .hive-root .icon-btn {
+    @apply inline-flex items-center justify-center rounded w-8 h-8 text-hive-text hover:bg-hive-hover transition-colors;
+  }
+  .hive-root .divider-v {
+    @apply w-px h-5 bg-hive-line mx-1 shrink-0;
+  }
+  .hive-root .input {
+    @apply h-8 rounded border border-hive-line bg-hive-bg px-2 text-hive-text outline-none focus:border-hive-accent;
+  }
+  .hive-root .menu {
+    @apply rounded-md border border-hive-line bg-hive-raised py-1 shadow-2xl shadow-black/40;
+  }
+  .hive-root .menu-item {
+    @apply flex w-full items-center gap-2 px-3 h-8 text-left hover:bg-hive-hover whitespace-nowrap;
+  }
+  .hive-root .tab {
+    @apply px-3 h-9 border-b-2 border-transparent text-hive-muted hover:text-hive-text;
+  }
+  .hive-root .tab-on {
+    @apply border-hive-accent text-hive-text;
+  }
+}
